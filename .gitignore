@@ -2,4 +2,5 @@
 .cache/
 public/runtime/*
 !public/runtime/.gitkeep
+/release/
 npm-debug.log*

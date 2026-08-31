@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "packageName": "j2me-web",
+  "packageVersion": "0.1.0",
+  "publicApiVersion": 1,
+  "admissionStatus": "CANDIDATE",
+  "adapter": {
+    "adapterKind": "J2ME_MINIJVM_WEB",
+    "adapterId": "j2me-minijvm-web",
+    "adapterAbi": "j2me-rms",
+    "checkpointFormat": "j2me-rms-bundle-v1",
+    "checkpointSemantics": "RMS_FILE_TREE",
+    "capabilities": {
+      "pause": true,
+      "screenshot": true,
+      "checkpoint": true,
+      "contentSources": ["J2ME_JAR_V1"],
+      "standardGamepad": true,
+      "frameCounter": true,
+      "validationProbes": [],
+      "volume": false
+    }
+  },
+  "core": {
+    "id": "j2me-midp",
+    "family": "J2ME",
+    "generation": "MIDP",
+    "gameCompatibilityLine": "j2me-jar-v1",
+    "saveAbi": "j2me-rms-v1",
+    "readableSaveAbis": ["j2me-rms-v1"]
+  },
+  "limits": {
+    "maximumJarBytes": 134217728,
+    "maximumCheckpointBytes": 2097152
+  },
+  "assets": [
+    "runtime.js",
+    "runtime.wasm",
+    "runtime.data",
+    "runtime.worker.js",
+    "runtime-api.js",
+    "runtime-controller.js",
+    "checkpoint-codec.js"
+  ]
+}
