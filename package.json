@@ -1,12 +1,14 @@
 {
   "name": "j2me-web",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build:runtime": "bash scripts/build-runtime.sh",
     "dev": "node server.mjs",
-    "check": "node --check server.mjs && node --check web/app.js"
+    "test": "node --test",
+    "check": "node --check server.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && npm test",
+    "release:build": "node scripts/package-runtime.mjs"
   },
   "engines": {
     "node": ">=18"

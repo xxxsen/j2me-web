@@ -49,6 +49,15 @@
             <input id="jar-file" type="file" accept=".jar,application/java-archive" />
           </div>
 
+          <div class="field checkpoint-field">
+            <label for="checkpoint-file">宿主 Checkpoint（可选）</label>
+            <label class="file-picker" for="checkpoint-file">
+              <span id="checkpoint-file-label">选择 .j2mecp 文件</span>
+              <strong>浏览</strong>
+            </label>
+            <input id="checkpoint-file" type="file" accept=".j2mecp,application/octet-stream" />
+          </div>
+
           <button id="start-button" class="primary" type="button">启动游戏</button>
           <button id="reload-button" class="secondary" type="button" hidden>重新加载页面</button>
 
@@ -62,16 +71,16 @@
         <section id="stage" class="stage" aria-label="J2ME 游戏画面">
           <div class="stage-toolbar" aria-label="画面控制">
             <button id="audio-button" class="stage-action" type="button" disabled>启用声音</button>
+            <button id="pause-button" class="stage-action" type="button" disabled>暂停</button>
+            <button id="checkpoint-button" class="stage-action" type="button" disabled>导出存档</button>
             <button id="view-button" class="stage-action" type="button" disabled>显示模拟按键</button>
             <button id="fullscreen-button" class="stage-action" type="button">全屏</button>
           </div>
-          <div class="screen-surface">
+          <div id="screen-surface" class="screen-surface">
             <div id="screen-placeholder" class="screen-placeholder">
               <span class="phone-icon" aria-hidden="true"></span>
               <p>选择一个游戏后启动</p>
             </div>
-            <canvas id="canvas" class="runtime-canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
-            <canvas id="game-display" class="game-display" width="240" height="320" tabindex="0" aria-label="放大的游戏画面"></canvas>
           </div>
         </section>
       </section>

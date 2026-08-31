@@ -183,8 +183,9 @@ emcc -O3 -o /build/wasm/runtime.js \
   -s USE_WEBGL2=1 -s USE_GLFW=3 -s MIN_WEBGL_VERSION=2 -s MAX_WEBGL_VERSION=2 \
   -s INITIAL_MEMORY=134217728 -s ALLOW_MEMORY_GROWTH=1 \
   -s FORCE_FILESYSTEM=1 -s EXIT_RUNTIME=0 \
+  -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=createJ2meModule \
   -s EXPORTED_FUNCTIONS="[\"_main\",\"_malloc\",\"_free\"]" \
-  -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"FS\"]" \
+  -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"FS\",\"addRunDependency\",\"removeRunDependency\"]" \
   -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
   -s WARN_ON_UNDEFINED_SYMBOLS=0 \
   -s ENVIRONMENT=web,worker

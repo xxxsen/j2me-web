@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,9 +57,17 @@ async function sendFile(response, root, pathname) {
 async function listFixtures(response) {
   try {
     const entries = await readdir(fixtureRoot, { withFileTypes: true });
-    const games = entries
+    const games = await Promise.all(entries
       .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".jar"))
-      .map((entry) => ({ name: entry.name, url: `/fixtures/${encodeURIComponent(entry.name)}` }));
+      .map(async (entry) => {
+        const bytes = await readFile(join(fixtureRoot, entry.name));
+        return {
+          name: entry.name,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          sizeBytes: bytes.byteLength,
+          url: `/fixtures/${encodeURIComponent(entry.name)}`
+        };
+      }));
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.writeHead(200).end(JSON.stringify(games));
   } catch {
