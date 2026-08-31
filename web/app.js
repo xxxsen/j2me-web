@@ -23,6 +23,10 @@ const logLines = ["页面已就绪。"];
 const displayContext = gameDisplay.getContext("2d", { alpha: false });
 displayContext.imageSmoothingEnabled = false;
 const lcdSource = { x: 2, y: 32, width: 240, height: 320 };
+// Persist only RecordStore data. Keeping the sibling runtime configuration in
+// MEMFS avoids carrying frontend-specific settings between builds and leaves
+// each game launch free to recreate compatible defaults.
+const persistenceRoot = "/appdata/freej2meonminijvm.jar/rms/rms";
 
 function appendLog(message, isError = false) {
   const text = String(message);
@@ -204,7 +208,7 @@ function loadRuntime(game) {
       return `/runtime/${path}`;
     },
     preRun: [function preloadGame() {
-      if (!FS.analyzePath("/home/web_user").exists) FS.mkdirTree("/home/web_user");
+      if (!FS.analyzePath(persistenceRoot).exists) FS.mkdirTree(persistenceRoot);
       const finishPreload = () => {
         FS.writeFile("/game.jar", new Uint8Array(game.bytes));
         appendLog(`已写入虚拟文件系统：/game.jar (${game.bytes.byteLength} bytes)`);
@@ -216,7 +220,7 @@ function loadRuntime(game) {
         finishPreload();
         return;
       }
-      FS.mount(idbfs, { autoPersist: true }, "/home/web_user");
+      FS.mount(idbfs, { autoPersist: true }, persistenceRoot);
       addRunDependency("j2me-web-idbfs");
       FS.syncfs(true, (error) => {
         if (error) appendLog(`读取浏览器存档失败：${error}`, true);
