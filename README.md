@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的浏览器 J2ME 运行时。它把 miniJVM 编译为 WebAssembly，以 FreeJ2ME Plus 提供 MIDP/厂商 API 实现，并通过一个轻量页面加载 fixture 或本地 JAR。
 
-当前版本为 `0.0.2`，定位是可复现的兼容性基线：2D 游戏、键盘/指针输入、浏览器存档以及 MIDI 音频链路均已跑通；3D、厂商扩展和更多媒体编码仍需持续补齐。详细结果见 [兼容性报告](docs/COMPATIBILITY.md)。
+当前版本为 `0.1.0`，新增面向 `retrom-runtime` 的宿主无关公共 API、模块化 Wasm 工厂、生命周期事件、标准手柄、截图和有界 RMS checkpoint；原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -13,7 +13,7 @@ npm run build:runtime
 npm run dev
 ```
 
-打开 [http://127.0.0.1:4173](http://127.0.0.1:4173)，选择 `fixture/J2ME` 中的游戏或上传本地 `.jar`，然后点击“启动游戏”。生成的运行时位于 `public/runtime`，下载缓存位于 `.cache/upstream`；两者都不会提交到 Git。
+打开 [http://127.0.0.1:4173](http://127.0.0.1:4173)，选择 `fixture/J2ME` 中的游戏或上传本地 `.jar`，然后点击“启动游戏”。Demo 还可暂停/继续、导出 `.j2mecp` checkpoint，或在启动前导入 checkpoint。生成的运行时位于 `public/runtime`，下载缓存位于 `.cache/upstream`；两者都不会提交到 Git。
 
 可用查询参数：
 
@@ -25,6 +25,42 @@ npm run dev
 
 `fixture` 可使用完整文件名、文件名片段或下拉列表索引，适合浏览器自动化烟测。
 
+## 公共运行时 API
+
+`web/runtime-api.js` 提供与 `retrom-runtime` 的 `GameRuntime` 同形生命周期，宿主不需要接触 Emscripten `Module` 或 `FS`：
+
+```js
+import { createRuntime } from "./runtime-api.js";
+
+const runtime = createRuntime({
+  sessionId: "launch-1",
+  contentDigest: jarSha256,
+  source: {
+    kind: "J2ME_JAR_V1",
+    name: "game.jar",
+    url: jarUrl,
+    sizeBytes: jarSize,
+    sha256: jarSha256
+  },
+  adapter: {
+    adapterKind: "J2ME_MINIJVM_WEB",
+    adapterId: "j2me-minijvm-web",
+    runtimeBaseUrl: runtimeAssetBaseUrl,
+    storage: "HOST",
+    viewport: { width: 240, height: 320 }
+  }
+}, {
+  frameWindow: window,
+  restorePayload,
+  onDiagnostic: console.info
+});
+
+runtime.subscribe(handleRuntimeEvent);
+await runtime.mount(container);
+```
+
+公共对象提供 `pause()`、`resume()`、`checkpoint()`、`screenshot()`、`exit()`、能力/状态查询和事件订阅。`HOST` 模式由 Retrom 保存 checkpoint，`BROWSER` 模式只用于 Demo 的 IDBFS 持久化。JAR 的精确长度、ZIP 签名与 SHA-256 会在启动前验证。完整配置、事件和发布资产见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md)。
+
 ## 使用说明
 
 - 默认只显示并等比放大游戏 LCD；“显示模拟按键”可切回 miniJVM 的完整模拟器窗口。
@@ -32,7 +68,7 @@ npm run dev
 - 全屏模式保持游戏原始宽高比，以像素风格缩放填满可用空间。
 - 键盘支持方向键、WASD、Enter 和数字键，Q / E 对应左右软键；放大画面上的指针事件会映射回模拟器 LCD。
 - 首次启动游戏的点击会尝试解锁 Web Audio；浏览器仍阻止自动播放时，点击“启用声音”。
-- RMS 写入 `/appdata/freej2meonminijvm.jar/rms/rms`，该目录通过 IDBFS 持久化到浏览器存储；运行配置每次启动重新生成，避免跨构建携带不兼容设置。
+- Demo 的 RMS 写入 `/appdata/freej2meonminijvm.jar/rms/rms` 并通过 IDBFS 持久化；宿主的 `HOST` 模式不读取该浏览器数据，只接受显式 `restorePayload`。
 - 当前一次页面生命周期只运行一个 JAR；切换游戏请重新加载页面。
 
 页面会先检查 ZIP/JAR 文件签名，避免把扩展名错误的 SIS、HTML 下载页等文件交给虚拟机。
@@ -40,10 +76,13 @@ npm run dev
 ## 运行架构
 
 ```text
-fixture / 本地 JAR
+Retrom 配置 / Demo fixture / 本地 JAR
         │
         ▼
-Emscripten MEMFS (/game.jar) + IDBFS (/appdata/.../rms/rms)
+runtime-api（生命周期、校验、输入、checkpoint）
+        │
+        ▼
+模块化 Emscripten MEMFS (/game.jar) + 可选 IDBFS
         │
         ▼
 miniJVM.wasm ── WebLauncher ── freej2meOnMinijvm
@@ -98,8 +137,10 @@ npm run build:runtime
 ## 开发检查
 
 ```bash
+npm ci
 npm run check
 npm run build:runtime
+npm run release:build
 ```
 
 当前 Emscripten pthread 构建为规避 stop-the-world 死锁禁用了 miniJVM GC，长时间运行时内存可能持续增长；正式服务还应增加长时游戏、反复场景切换和多浏览器回归。

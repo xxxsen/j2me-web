@@ -33,6 +33,7 @@ vX.Y.Z
 1. 确认四个仓库工作区干净且位于 `main`。
 2. 运行 `npm run check`。
 3. 仅使用远端默认地址运行 `npm run build:runtime`，验证固定提交均可拉取。
-4. 至少烟测《仙剑奇侠传》《魔塔》《钻石狂潮》，检查画面、按键、MIDI 和 Web Audio 状态。
-5. 更新 `docs/COMPATIBILITY.md`，明确通过路径与未验证范围。
-6. 推送 fork 的 `main` 和规范 tag，再推送 `j2me-web` 的 `main` 和版本 tag。
+4. 运行 `RELEASE_TAG=vX.Y.Z npm run release:build`，核对 metadata 的 commit、tag、资产大小与摘要。
+5. 至少烟测《仙剑奇侠传》《魔塔》《钻石狂潮》，检查画面、按键、MIDI、Web Audio、暂停/继续和 checkpoint 跨页面恢复。
+6. 更新 `runtime-manifest.json` 与 `docs/COMPATIBILITY.md`，明确通过路径与未验证范围。
+7. 推送 fork 的 `main` 和规范 tag，再推送 `j2me-web` 的 `main` 和 annotated 版本 tag；`v*` tag 会发布不可变运行时资产。

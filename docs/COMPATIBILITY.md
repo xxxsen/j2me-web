@@ -1,6 +1,6 @@
 # 兼容性报告
 
-本报告对应 `j2me-web 0.0.2` 及 README 中固定的三个 fork 提交。测试环境为 Linux x86_64、Chromium、WebAssembly pthread、软件 WebGL2 和 44.1 kHz Web Audio。结果只代表实际走过的路径，不代表整个游戏已通关。
+本报告对应 `j2me-web 0.1.0` 及 README 中固定的三个 fork 提交。测试环境为 Linux x86_64、Chromium、WebAssembly pthread、软件 WebGL2 和 44.1 kHz Web Audio。结果只代表实际走过的路径，不代表整个游戏已通关。
 
 ## 样本结果
 
@@ -22,6 +22,9 @@
 | CLDC/MIDP 2D | 可用 | 多个 2D 样本可启动、渲染和响应输入 |
 | 非标准画布尺寸 | 可用 | 支持自动/手动裁取并等比铺满，已验证 128×144 与 240×320 |
 | RMS 持久化 | 已验证 | `/appdata/freej2meonminijvm.jar/rms/rms` 使用 IDBFS `autoPersist`；首次存档、页面重载、读取和恢复后运行均通过，仍需补充导入/导出及跨版本迁移工具 |
+| Retrom 公共生命周期 | 已验证 | 模块化实例可启动；状态/进度/READY 事件、暂停/继续、截图入口、退出清理与 checkpoint 可用性由统一 controller 管理 |
+| 标准手柄 | 已接入 | 标准映射覆盖方向、A 确认、B 取消、X/Start 菜单并在暂停/退出时释放；仍需真实手柄矩阵回归 |
+| 宿主 checkpoint | 部分 | RMS 文件树可导出为绑定游戏摘要且不超过 2 MiB 的 `j2me-rms-bundle-v1`，并可在新页面实例启动前恢复；它不是 miniJVM 执行状态快照 |
 | MIDI | 可用 | TinySoundFont + TimGM6mb 离线渲染，miniaudio/Web Audio 播放 |
 | PCM/WAV | 已接入 | miniaudio 文件解码路径可用；样本覆盖少于 MIDI |
 | M3G / Mascot 3D | 部分 | FreeJ2ME Plus 有 API 实现，但 miniJVM WebGL 后端尚未完成全量回归 |
@@ -35,6 +38,8 @@
 《魔塔》使用全新浏览器配置完成了实际游戏流程，而不是只验证文件系统 API：推进到可控制角色的场景，在右侧格首次存档；刷新页面并读取后恢复到右侧格。随后移动到左侧格再次存档，再移动回右侧格制造进度差异；读取最新存档后角色准确恢复到左侧格，并可继续向右移动。恢复后持续观察 12 秒，运行状态和 Web Audio 保持正常，未出现崩溃、卡死或新的 RMS 异常。
 
 第二次存档后共生成 8 个 RMS 文件，总大小为 **922 B**。该数据远低于 2 MiB 阈值，因此当前不增加压缩层；这样可以避免为很小的数据引入格式版本、失败恢复和额外 CPU 开销。后续若单游戏存档实际超过 2 MiB，再在导出/导入边界增加带版本标识的压缩格式，不改变游戏看到的 RecordStore 数据。
+
+`0.1.0` 的公共 API 另用同一组文件导出了 1202 B 的 `j2me-rms-bundle-v1`（额外字节为魔数、游戏 SHA-256、路径和长度元数据），并在新的页面/runtime 实例中于 MIDlet 启动前成功导入。需要强调：该结果证明了宿主保存数据的跨实例传递，不代表任意 MIDlet 都会跳过自身标题/读档菜单自动回到保存画面。
 
 ## 与 freej2me-web 对比
 
