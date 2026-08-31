@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>J2ME Web Runtime</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">miniJVM · WebAssembly</p>
+          <h1>J2ME Web Runtime</h1>
+          <p class="subtitle">在浏览器中加载一个 JAR，测试 freej2meOnMinijvm 运行链路。</p>
+        </div>
+        <span id="runtime-badge" class="badge">等待选择游戏</span>
+      </header>
+
+      <section class="workspace">
+        <aside class="controls" aria-label="游戏加载控制">
+          <div class="field">
+            <label for="fixture-select">Fixture 测试游戏</label>
+            <select id="fixture-select">
+              <option value="">正在读取 fixture…</option>
+            </select>
+          </div>
+
+          <div class="field resolution-field">
+            <label for="viewport-select">游戏画面区域</label>
+            <select id="viewport-select">
+              <option value="auto">自动识别（推荐）</option>
+              <option value="240x320">240 × 320（默认）</option>
+              <option value="128x144">128 × 144（仙剑）</option>
+              <option value="128x160">128 × 160</option>
+              <option value="176x208">176 × 208</option>
+            </select>
+          </div>
+
+          <div class="divider"><span>或</span></div>
+
+          <div class="field">
+            <label for="jar-file">本地 JAR</label>
+            <label class="file-picker" for="jar-file">
+              <span id="file-label">选择 .jar 文件</span>
+              <strong>浏览</strong>
+            </label>
+            <input id="jar-file" type="file" accept=".jar,application/java-archive" />
+          </div>
+
+          <button id="start-button" class="primary" type="button">启动游戏</button>
+          <button id="reload-button" class="secondary" type="button" hidden>重新加载页面</button>
+
+          <div class="help">
+            <p>键盘：方向键 / WASD、Enter、数字键盘。</p>
+            <p>触屏：使用模拟器画面两侧的虚拟按键。</p>
+            <p>旧游戏画面偏小时，可切换“游戏画面区域”进行等比放大。</p>
+          </div>
+        </aside>
+
+        <section id="stage" class="stage" aria-label="J2ME 游戏画面">
+          <div class="stage-toolbar" aria-label="画面控制">
+            <button id="audio-button" class="stage-action" type="button" disabled>启用声音</button>
+            <button id="view-button" class="stage-action" type="button" disabled>显示模拟按键</button>
+            <button id="fullscreen-button" class="stage-action" type="button">全屏</button>
+          </div>
+          <div class="screen-surface">
+            <div id="screen-placeholder" class="screen-placeholder">
+              <span class="phone-icon" aria-hidden="true"></span>
+              <p>选择一个游戏后启动</p>
+            </div>
+            <canvas id="canvas" class="runtime-canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+            <canvas id="game-display" class="game-display" width="240" height="320" tabindex="0" aria-label="放大的游戏画面"></canvas>
+          </div>
+        </section>
+      </section>
+
+      <details class="console-panel">
+        <summary>运行日志</summary>
+        <pre id="console-output">页面已就绪。</pre>
+      </details>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

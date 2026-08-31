@@ -1,0 +1,14 @@
+{
+  "name": "j2me-web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:runtime": "bash scripts/build-runtime.sh",
+    "dev": "node server.mjs",
+    "check": "node --check server.mjs && node --check web/app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
