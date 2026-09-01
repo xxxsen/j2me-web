@@ -27,6 +27,8 @@ const sources = [
   "web/runtime-controller.js",
   "web/checkpoint-codec.js",
   "web/audio-policy.js",
+  "web/input-probe.js",
+  "web/video-scaling.js",
   "runtime-manifest.json",
   "THIRD_PARTY_NOTICES.md"
 ];
@@ -56,9 +58,9 @@ const metadata = {
   repository: "https://github.com/xxxsen/j2me-web",
   schemaVersion: 1,
   sourceCommits: {
-    freej2meOnMinijvm: "e90225a2f992bec746435293fd2b9c401df9f5cc",
-    freej2mePlus: "bc6fc7cd03d8d7eeae40bceb86d7424efbacbc18",
-    miniJVM: "1778bd07fea64213d5e4d3061a489044abf458e7"
+    freej2meOnMinijvm: "74b4ce5d61dadb30970783ba419b0aa4281c9802",
+    freej2mePlus: "fdafeb69cba129086c3f8fe9c84e8ddba50d432b",
+    miniJVM: "664f358db5d62b0ae2faffcf8b653c851001627e"
   },
   tag
 };

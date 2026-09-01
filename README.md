@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的浏览器 J2ME 运行时。它把 miniJVM 编译为 WebAssembly，以 FreeJ2ME Plus 提供 MIDP/厂商 API 实现，并通过一个轻量页面加载 fixture 或本地 JAR。
 
-当前版本为 `0.1.1`，新增面向 `retrom-runtime` 的宿主无关公共 API、模块化 Wasm 工厂、生命周期事件、标准手柄、截图和有界 RMS checkpoint，并修复《仙剑奇侠传》的红蓝通道交换、打包 MIDI 背景音乐和默认音频启动；原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
+当前版本为 `0.2.0`。在既有 Retrom 公共 API、RMS checkpoint 和颜色修复之上，本版让 MIDlet 启动不再阻塞浏览器事件循环，增加三种低分辨率缩放模式、端到端按键契约测试，并以轻量 miniJVM Player 和直连 Web Audio 修复《仙剑奇侠传》《魔塔》的启动、输入与静音问题。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -47,7 +47,8 @@ const runtime = createRuntime({
     adapterId: "j2me-minijvm-web",
     runtimeBaseUrl: runtimeAssetBaseUrl,
     storage: "HOST",
-    viewport: { width: 240, height: 320 }
+    viewport: { width: 240, height: 320 },
+    scalingMode: "SHARP_FIT"
   }
 }, {
   frameWindow: window,
@@ -59,13 +60,13 @@ runtime.subscribe(handleRuntimeEvent);
 await runtime.mount(container);
 ```
 
-公共对象提供 `pause()`、`resume()`、`checkpoint()`、`screenshot()`、`exit()`、能力/状态查询和事件订阅。`HOST` 模式由 Retrom 保存 checkpoint，`BROWSER` 模式只用于 Demo 的 IDBFS 持久化。JAR 的精确长度、ZIP 签名与 SHA-256 会在启动前验证。完整配置、事件和发布资产见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md)。
+公共对象提供 `pause()`、`resume()`、`checkpoint()`、`screenshot()`、`exit()`、`getScalingMode()`、`setScalingMode()`、`getValidationProbe()`、能力/状态查询和事件订阅。`HOST` 模式由 Retrom 保存 checkpoint，`BROWSER` 模式只用于 Demo 的 IDBFS 持久化。JAR 的精确长度、ZIP 签名与 SHA-256 会在启动前验证。完整配置、事件和发布资产见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md)。
 
 ## 使用说明
 
 - 默认只显示并等比放大游戏 LCD；“显示模拟按键”可切回 miniJVM 的完整模拟器窗口。
 - 画面区域默认是 240×320。《仙剑奇侠传》会自动裁取其实际使用的 128×144 区域，也可以手动选择其他尺寸。
-- 全屏模式保持游戏原始宽高比，以像素风格缩放填满可用空间。
+- `SHARP_FIT`（默认）保持宽高比并用最近邻锐利铺满；`INTEGER_NEAREST` 只用整数倍像素，最清晰但可能留边；`SCALE2X` 先用像素邻域算法生成 2× 帧，再铺满显示区。
 - 键盘支持方向键、WASD、Enter 和数字键，Q / E 对应左右软键；放大画面上的指针事件会映射回模拟器 LCD。
 - 游戏启动后默认恢复 Web Audio，并在运行初期、键盘或指针输入时自动重试，不要求用户再手动开启音乐。浏览器的全局自动播放策略仍可能要求一次页面交互。
 - Demo 的 RMS 写入 `/appdata/freej2meonminijvm.jar/rms/rms` 并通过 IDBFS 持久化；宿主的 `HOST` 模式不读取该浏览器数据，只接受显式 `restorePayload`。
@@ -92,10 +93,10 @@ miniJVM.wasm ── WebLauncher ── freej2meOnMinijvm
         │                              │
         ├── NanoVG + WebGL2 ───────────┤──► Canvas
         │                              │
-        └── TinySoundFont + miniaudio ─┘──► Web Audio
+        └── TinySoundFont ────────────────┘──► Web Audio
 ```
 
-音频资源会在 FreeJ2ME Plus 的资源流边界稳定化，再以临时文件交给 miniJVM；损坏的派生切片流会从最近的完整资源中恢复结构有效的打包 MIDI。MIDI 由 TinySoundFont 和 TimGM6mb SoundFont 离线渲染，PCM 通过 miniaudio 播放；pthread 工作线程内的 Web Audio 操作会代理到浏览器主线程。这条链路修复了此前的噪音、沙沙声、浑浊以及《仙剑奇侠传》无背景音乐的问题。
+音频资源在 FreeJ2ME Plus 的已知字节边界内直接交给轻量 miniJVM Player，不再经过临时文件 EOF 探测或加载整套桌面 Java Sound。损坏的派生切片流会从最近的完整资源中恢复结构有效的打包 MIDI；MIDI 由 TinySoundFont 和 TimGM6mb SoundFont 以 22.05 kHz 单声道渲染，同内容请求共享结果，再由浏览器主线程上的 Web Audio 解码和播放。运行时会在启动和用户输入时自动恢复音频，并在暂停/退出时挂起。这条链路修复了此前的噪音、浑浊、长时间静音以及《仙剑奇侠传》无背景音乐问题。
 
 `server.mjs` 会为全部响应设置以下头部，部署到其他静态服务器时必须等价保留：
 
@@ -111,9 +112,9 @@ Cross-Origin-Resource-Policy: same-origin
 
 | 层 | 仓库 | 固定提交 | 上游基线 |
 | --- | --- | --- | --- |
-| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `1778bd07fea64213d5e4d3061a489044abf458e7` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
-| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `e90225a2f992bec746435293fd2b9c401df9f5cc` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
-| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `bc6fc7cd03d8d7eeae40bceb86d7424efbacbc18` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
+| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `664f358db5d62b0ae2faffcf8b653c851001627e` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
+| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `74b4ce5d61dadb30970783ba419b0aa4281c9802` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
+| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `fdafeb69cba129086c3f8fe9c84e8ddba50d432b` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
 
 此外固定使用 TinySoundFont `853a0a171759f1ddba0de1442133a75912bbeffa`、TimGM6mb SoundFont（SHA-256 `c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854`）、Emscripten 3.1.46 和 Eclipse Temurin 8。
 
@@ -140,7 +141,10 @@ npm run build:runtime
 npm ci
 npm run check
 npm run build:runtime
+npm run test:input
 npm run release:build
 ```
+
+`test:input` 会启动真实 Wasm/MIDlet 和无头 Chromium，依次发送方向键、WASD、确认、左右软键及 0–9，并断言 FreeJ2ME 在交给 MIDlet 前观察到的最终键值，共覆盖 21 个浏览器按键；它不是只测 DOM `KeyboardEvent` 的映射表。
 
 当前 Emscripten pthread 构建为规避 stop-the-world 死锁禁用了 miniJVM GC，长时间运行时内存可能持续增长；正式服务还应增加长时游戏、反复场景切换和多浏览器回归。

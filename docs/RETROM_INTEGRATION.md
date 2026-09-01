@@ -4,13 +4,15 @@
 
 ## 准入能力对照
 
-| Retrom 能力 | j2me-web 0.1.1 | 说明 |
+| Retrom 能力 | j2me-web 0.2.0 | 说明 |
 | --- | --- | --- |
 | 模块化实例 | 已完成 | Emscripten 使用 `MODULARIZE + EXPORT_ES6`，不再占用 `window.Module` |
 | 统一生命周期 | 已完成 | 状态、串行操作、取消、幂等退出和公共事件由 `GameRuntimeController` 管理 |
 | 内容契约 | 已完成 | `J2ME_JAR_V1` 要求 URL、精确大小和 SHA-256；长度、摘要或 JAR 签名不一致时失败关闭 |
 | 加载进度 | 已完成 | JAR 流式下载发布 `PROJECT_CONTENT`，checkpoint 导入发布 `RESTORE` |
 | Canvas / 截图 / 帧计数 | 已完成 | 宿主取得放大后的 LCD canvas；PNG 截图和单调帧计数可用 |
+| 低分辨率缩放 | 已完成 | 能力清单公开 `INTEGER_NEAREST`、`SHARP_FIT`、`SCALE2X`，配置和运行中切换均走公共 API |
+| 输入契约探针 | 已完成 | `J2ME_INPUT_V1` 返回 FreeJ2ME 即将交给 MIDlet 的最终键值，供准入自动化验证；不是产品遥测接口 |
 | 暂停 / 继续 | 已接入 | 暂停 Emscripten 主循环、输入和 Web Audio；miniJVM 其他 pthread 的完全挂起仍需 VM 级控制 |
 | 标准手柄 | 已接入 | D-pad/左摇杆、A、B、X、Start/Select 映射为 J2ME 方向、确认和软键；退出时释放 |
 | 核心主动退出 | 已接入 | launcher 监控 `MobilePlatform.appTerminated`，以稳定标记转换为一次 `EXIT_REQUESTED` |
@@ -36,9 +38,10 @@ const config = {
   adapter: {
     adapterKind: "J2ME_MINIJVM_WEB",
     adapterId: "j2me-minijvm-web",
-    runtimeBaseUrl: "https://assets.example/j2me/v0.1.1/",
+    runtimeBaseUrl: "https://assets.example/j2me/v0.2.0/",
     storage: "HOST",
-    viewport: { width: 240, height: 320 }
+    viewport: { width: 240, height: 320 },
+    scalingMode: "SHARP_FIT"
   }
 };
 
@@ -65,7 +68,7 @@ await runtime.mount(container);
 - `FATAL_ERROR`
 - `EXIT_REQUESTED`
 
-运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、状态/能力/Canvas/帧计数查询和 `subscribe`。Demo 专用的 `unlockAudio`、`setViewMode` 与 `setViewport` 是附加便利方法，Retrom adapter 不需要依赖。
+运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、`getScalingMode`、`setScalingMode`、`getValidationProbe`、状态/能力/Canvas/帧计数查询和 `subscribe`。`J2ME_INPUT_V1` 仅用于集成/准入测试。Demo 专用的 `unlockAudio`、`setViewMode` 与 `setViewport` 是附加便利方法，Retrom adapter 不需要依赖。
 
 ## Checkpoint 格式
 
@@ -86,6 +89,7 @@ await runtime.mount(container);
 
 - `runtime.js`, `runtime.wasm`, `runtime.data`, `runtime.worker.js`
 - `runtime-api.js`, `runtime-controller.js`, `checkpoint-codec.js`
+- `audio-policy.js`, `input-probe.js`, `video-scaling.js`
 - `runtime-manifest.json`, `THIRD_PARTY_NOTICES.md`
 - `j2me-runtime-release.json`
 

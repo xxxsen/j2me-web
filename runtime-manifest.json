@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageName": "j2me-web",
-  "packageVersion": "0.1.1",
+  "packageVersion": "0.2.0",
   "publicApiVersion": 1,
   "admissionStatus": "CANDIDATE",
   "adapter": {
@@ -17,7 +17,8 @@
       "contentSources": ["J2ME_JAR_V1"],
       "standardGamepad": true,
       "frameCounter": true,
-      "validationProbes": [],
+      "validationProbes": ["J2ME_INPUT_V1"],
+      "videoScalingModes": ["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"],
       "volume": false
     }
   },
@@ -41,6 +42,8 @@
     "runtime-api.js",
     "runtime-controller.js",
     "checkpoint-codec.js",
-    "audio-policy.js"
+    "audio-policy.js",
+    "input-probe.js",
+    "video-scaling.js"
   ]
 }
