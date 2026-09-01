@@ -11,6 +11,7 @@ const capabilities = Object.freeze({
   screenshot: true,
   standardGamepad: true,
   validationProbes: Object.freeze([]),
+  videoScalingModes: Object.freeze(["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"]),
   volume: false
 });
 
@@ -25,6 +26,8 @@ function adapterFixture(overrides = {}) {
     pause: async () => undefined,
     resume: async () => undefined,
     screenshot: async () => new Blob([Uint8Array.of(1)], { type: "image/png" }),
+    getScalingMode: () => "SHARP_FIT",
+    setScalingMode: () => undefined,
     setVolume: null,
     ...overrides
   };
@@ -39,6 +42,9 @@ test("controller exposes the Retrom lifecycle and serializes host operations", a
   await runtime.mount({});
   assert.equal(runtime.getState(), "RUNNING");
   assert.equal(runtime.getFrameCount(), 12);
+  assert.equal(runtime.getScalingMode(), "SHARP_FIT");
+  runtime.setScalingMode("INTEGER_NEAREST");
+  assert.equal(runtime.getScalingMode(), "SHARP_FIT");
   await runtime.pause();
   assert.equal(runtime.getState(), "PAUSED");
   assert.deepEqual(await runtime.checkpoint(), {

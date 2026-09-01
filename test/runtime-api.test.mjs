@@ -52,6 +52,13 @@ test("config validation rejects a digest or adapter identity mismatch", () => {
     () => validateRuntimeConfig({ ...config, adapter: { ...config.adapter, adapterId: "other" } }),
     /J2ME_RUNTIME_CONFIG_INVALID/u
   );
+  assert.throws(
+    () => validateRuntimeConfig({ ...config, adapter: { ...config.adapter, scalingMode: "BLURRY" } }),
+    /J2ME_RUNTIME_CONFIG_INVALID/u
+  );
+  assert.doesNotThrow(
+    () => validateRuntimeConfig({ ...config, adapter: { ...config.adapter, scalingMode: "SCALE2X" } })
+  );
 });
 
 test("content hashing uses the same lower-case SHA-256 contract as the host", async () => {

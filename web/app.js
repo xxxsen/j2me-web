@@ -2,6 +2,7 @@ import { createRuntime, sha256Hex } from "./runtime-api.js";
 
 const fixtureSelect = document.querySelector("#fixture-select");
 const viewportSelect = document.querySelector("#viewport-select");
+const scalingSelect = document.querySelector("#scaling-select");
 const jarFile = document.querySelector("#jar-file");
 const fileLabel = document.querySelector("#file-label");
 const checkpointFile = document.querySelector("#checkpoint-file");
@@ -144,6 +145,7 @@ async function startGame() {
         adapterId: "j2me-minijvm-web",
         runtimeBaseUrl: new URL("/runtime/", location.href).href,
         storage: "BROWSER",
+        scalingMode: scalingSelect.value,
         viewport: selectedViewport(source.name)
       }
     }, {
@@ -192,6 +194,13 @@ viewportSelect.addEventListener("change", () => {
   const viewport = selectedViewport(fixtureName);
   runtime.setViewport(viewport);
   appendLog(`游戏画面区域：${viewport.width} × ${viewport.height}`);
+});
+
+scalingSelect.addEventListener("change", () => {
+  if (!runtime) return;
+  runtime.setScalingMode(scalingSelect.value);
+  const label = scalingSelect.selectedOptions[0]?.textContent || scalingSelect.value;
+  appendLog(`画面清晰度：${label}`);
 });
 
 startButton.addEventListener("click", () => void startGame());

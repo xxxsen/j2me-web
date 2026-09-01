@@ -1,6 +1,12 @@
 import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckpoint } from "./checkpoint-codec.js";
 import { installAudioActivation, resumeRuntimeAudio } from "./audio-policy.js";
 import { GameRuntimeController } from "./runtime-controller.js";
+import {
+  VIDEO_SCALING_MODES,
+  computePresentationSize,
+  scale2xPixels,
+  validScalingMode
+} from "./video-scaling.js";
 
 export const J2ME_ADAPTER_KIND = "J2ME_MINIJVM_WEB";
 export const J2ME_ADAPTER_ID = "j2me-minijvm-web";
@@ -17,6 +23,7 @@ const capabilities = Object.freeze({
   screenshot: true,
   standardGamepad: true,
   validationProbes: Object.freeze([]),
+  videoScalingModes: VIDEO_SCALING_MODES,
   volume: false
 });
 
@@ -65,6 +72,7 @@ export function validateRuntimeConfig(config) {
     !validDigest(config.contentDigest) || adapter?.adapterKind !== J2ME_ADAPTER_KIND ||
     adapter.adapterId !== J2ME_ADAPTER_ID || !validUrl(adapter.runtimeBaseUrl) ||
     !validStorage(adapter.storage) || !validViewport(adapter.viewport) ||
+    adapter.scalingMode !== undefined && !validScalingMode(adapter.scalingMode) ||
     source?.kind !== J2ME_CONTENT_SOURCE || !boundedText(source.name, 500) ||
     !validUrl(source.url, true) || !Number.isSafeInteger(source.sizeBytes) ||
     source.sizeBytes <= 0 || source.sizeBytes > maximumJarBytes || !validDigest(source.sha256) ||
@@ -91,7 +99,8 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     ? null
     : decodeCheckpoint(options.restorePayload, config.contentDigest);
   const jarBytes = await fetchJar(config.source, frameWindow, reportProgress);
-  const surface = createSurface(document, config.adapter.viewport);
+  const initialScalingMode = config.adapter.scalingMode ?? "SHARP_FIT";
+  const surface = createSurface(document, frameWindow, config.adapter.viewport, initialScalingMode);
   target.replaceChildren(surface.root);
   const runtimeBaseUrl = new URL(normalizedBase(config.adapter.runtimeBaseUrl), document.baseURI);
   const moduleOptions = {};
@@ -103,6 +112,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   let frameCount = 0;
   let viewMode = "LCD";
   let viewport = { ...config.adapter.viewport };
+  let scalingMode = initialScalingMode;
   let exitReported = false;
   const hostBridgeReady = deferred();
   const pressedGamepadKeys = new Set();
@@ -198,6 +208,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     releaseKeys(frameWindow, surface.source, pressedGamepadKeys);
     audioActivation.remove();
     pointerHandlers.remove();
+    surface.resizeObserver?.disconnect();
     try { module?.pauseMainLoop?.(); } catch { /* The frame may already be tearing down. */ }
     pauseAudio(frameWindow);
     target.replaceChildren();
@@ -232,6 +243,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       }
     },
     getFrameCount: () => frameCount,
+    getScalingMode: () => scalingMode,
     getValidationProbe: () => null,
     pause: async () => {
       if (exited || paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
@@ -249,6 +261,12 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     },
     screenshot: () => canvasBlob(surface.display),
     setVolume: null,
+    setScalingMode: (mode) => {
+      if (!validScalingMode(mode)) throw new Error("J2ME_SCALING_MODE_INVALID");
+      scalingMode = mode;
+      resizeDisplay(surface, viewport, scalingMode);
+      surface.source.focus({ preventScroll: true });
+    },
     setViewMode: (mode) => {
       viewMode = mode;
       applyViewMode(surface, viewMode);
@@ -257,7 +275,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     setViewport: (value) => {
       if (!validViewport(value)) throw new Error("J2ME_VIEWPORT_INVALID");
       viewport = { width: value.width, height: value.height };
-      resizeDisplay(surface.display, viewport);
+      resizeDisplay(surface, viewport, scalingMode);
     },
     unlockAudio: () => resumeRuntimeAudio(frameWindow)
   };
@@ -361,10 +379,11 @@ function prepareFileSystem(moduleOptions, jarBytes, storage, restored, reportPro
   });
 }
 
-function createSurface(document, viewport) {
+function createSurface(document, frameWindow, viewport, scalingMode) {
   const root = document.createElement("div");
   const source = document.createElement("canvas");
   const display = document.createElement("canvas");
+  const staging = document.createElement("canvas");
   root.dataset.j2meRuntimeSurface = "";
   source.className = "j2me-runtime-source";
   display.className = "j2me-runtime-display";
@@ -380,20 +399,50 @@ function createSurface(document, viewport) {
     outline: "none", width: "100%"
   });
   Object.assign(display.style, {
-    background: "#000", display: "block", height: "100%", imageRendering: "pixelated",
-    maxWidth: "100%", objectFit: "contain", outline: "none", touchAction: "none", width: "auto"
+    background: "#000", display: "block", imageRendering: "pixelated",
+    maxHeight: "100%", maxWidth: "100%", outline: "none", touchAction: "none"
   });
-  resizeDisplay(display, viewport);
+  const surface = { root, source, display, staging, resizeObserver: null, logicalViewport: null };
+  resizeDisplay(surface, viewport, scalingMode);
   root.append(source, display);
-  return { root, source, display };
+  if (typeof frameWindow.ResizeObserver === "function") {
+    surface.resizeObserver = new frameWindow.ResizeObserver(() =>
+      updatePresentation(surface, surface.logicalViewport, surface.scalingMode));
+    surface.resizeObserver.observe(root);
+  }
+  return surface;
 }
 
-function resizeDisplay(display, viewport) {
-  display.width = viewport.width;
-  display.height = viewport.height;
-  display.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
-  const context = display.getContext("2d", { alpha: false });
+function resizeDisplay(surface, viewport, scalingMode) {
+  const factor = scalingMode === "SCALE2X" ? 2 : 1;
+  surface.logicalViewport = { ...viewport };
+  surface.scalingMode = scalingMode;
+  surface.display.width = viewport.width * factor;
+  surface.display.height = viewport.height * factor;
+  surface.staging.width = viewport.width;
+  surface.staging.height = viewport.height;
+  surface.scaledPixels = scalingMode === "SCALE2X"
+    ? new Uint32Array(viewport.width * viewport.height * 4)
+    : null;
+  surface.scaledImage = null;
+  surface.display.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+  const context = surface.display.getContext("2d", { alpha: false });
   if (context) context.imageSmoothingEnabled = false;
+  updatePresentation(surface, viewport, scalingMode);
+}
+
+function updatePresentation(surface, viewport, scalingMode) {
+  const availableWidth = surface.root.clientWidth;
+  const availableHeight = surface.root.clientHeight;
+  if (!availableWidth || !availableHeight) {
+    surface.display.style.width = "100%";
+    surface.display.style.height = "100%";
+    return;
+  }
+  const size = computePresentationSize(viewport, availableWidth, availableHeight, scalingMode);
+  surface.display.style.width = `${size.width}px`;
+  surface.display.style.height = `${size.height}px`;
+  surface.display.style.imageRendering = scalingMode === "SCALE2X" ? "auto" : "pixelated";
 }
 
 function applyViewMode(surface, mode) {
@@ -410,8 +459,20 @@ function drawLcd(surface, viewport) {
   const context = surface.display.getContext("2d", { alpha: false });
   if (!context) return;
   try {
-    context.drawImage(surface.source, 2, 32, viewport.width, viewport.height,
-      0, 0, surface.display.width, surface.display.height);
+    if (surface.scalingMode !== "SCALE2X") {
+      context.drawImage(surface.source, 2, 32, viewport.width, viewport.height,
+        0, 0, surface.display.width, surface.display.height);
+      return;
+    }
+    const stagingContext = surface.staging.getContext("2d", { alpha: false, willReadFrequently: true });
+    if (!stagingContext) return;
+    stagingContext.drawImage(surface.source, 2, 32, viewport.width, viewport.height,
+      0, 0, viewport.width, viewport.height);
+    const input = stagingContext.getImageData(0, 0, viewport.width, viewport.height);
+    scale2xPixels(new Uint32Array(input.data.buffer), viewport.width, viewport.height, surface.scaledPixels);
+    surface.scaledImage ??= context.createImageData(viewport.width * 2, viewport.height * 2);
+    new Uint32Array(surface.scaledImage.data.buffer).set(surface.scaledPixels);
+    context.putImageData(surface.scaledImage, 0, 0);
   } catch { /* The WebGL surface may be unavailable during a resize. */ }
 }
 
@@ -422,8 +483,8 @@ function installPointerForwarding(surface, frameWindow, activate) {
     if (event.type === "pointerdown") surface.display.setPointerCapture?.(event.pointerId);
     const output = surface.display.getBoundingClientRect();
     const source = surface.source.getBoundingClientRect();
-    const x = 2 + (event.clientX - output.left) / Math.max(1, output.width) * surface.display.width;
-    const y = 32 + (event.clientY - output.top) / Math.max(1, output.height) * surface.display.height;
+    const x = 2 + (event.clientX - output.left) / Math.max(1, output.width) * surface.logicalViewport.width;
+    const y = 32 + (event.clientY - output.top) / Math.max(1, output.height) * surface.logicalViewport.height;
     const type = event.type === "pointerdown" ? "mousedown" :
       event.type === "pointerup" || event.type === "pointercancel" ? "mouseup" : "mousemove";
     surface.source.dispatchEvent(new frameWindow.MouseEvent(type, {

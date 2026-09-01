@@ -38,6 +38,15 @@
             </select>
           </div>
 
+          <div class="field resolution-field">
+            <label for="scaling-select">画面清晰度</label>
+            <select id="scaling-select">
+              <option value="SHARP_FIT">锐利铺满（推荐）</option>
+              <option value="INTEGER_NEAREST">整数倍像素（最清晰）</option>
+              <option value="SCALE2X">Scale2x 像素增强（实验）</option>
+            </select>
+          </div>
+
           <div class="divider"><span>或</span></div>
 
           <div class="field">
@@ -64,7 +73,7 @@
           <div class="help">
             <p>键盘：方向键 / WASD、Enter、数字键盘；Q / E 为左右软键。</p>
             <p>触屏：使用模拟器画面两侧的虚拟按键。</p>
-            <p>旧游戏画面偏小时，可切换“游戏画面区域”进行等比放大。</p>
+            <p>画面模糊时可选整数倍像素；Scale2x 会柔化像素锯齿，但消耗更多 CPU。</p>
           </div>
         </aside>
 

@@ -71,6 +71,8 @@ export class GameRuntimeController {
 
   getCanvas() { return this.adapter?.getCanvas() ?? null; }
 
+  getScalingMode() { return this.adapter?.getScalingMode?.() ?? null; }
+
   getFrameCount() {
     if (!this.capabilities.frameCounter || !this.adapter) return null;
     const value = this.adapter.getFrameCount();
@@ -100,6 +102,14 @@ export class GameRuntimeController {
     this.requireActiveState();
     if (mode !== "LCD" && mode !== "EMULATOR") throw new Error("J2ME_VIEW_MODE_INVALID");
     this.requireAdapter().setViewMode?.(mode);
+  }
+
+  setScalingMode(mode) {
+    this.requireActiveState();
+    if (!this.capabilities.videoScalingModes?.includes(mode)) {
+      throw new Error("J2ME_SCALING_MODE_INVALID");
+    }
+    this.requireAdapter().setScalingMode?.(mode);
   }
 
   setViewport(viewport) {
