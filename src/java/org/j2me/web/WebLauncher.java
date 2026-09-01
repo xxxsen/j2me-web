@@ -17,17 +17,29 @@ public final class WebLauncher {
     public static void main(String[] args) {
         GCallBack callback = GCallBack.getInstance();
         callback.init(960, 540);
+        System.out.println("[j2me-web] GLFW_READY");
 
         if (!AppLoader.addApp(APP_NAME, APP_PATH)) {
             throw new RuntimeException("Unable to install " + APP_PATH);
         }
 
-        GApplication app = AppLoader.runApp(APP_NAME);
-        if (app == null) {
-            throw new RuntimeException("Unable to start " + APP_NAME);
-        }
-
-        startHostBridge(app);
+        Thread appLoader = new Thread(new Runnable() {
+            public void run() {
+                try {
+                    System.out.println("[j2me-web] APP_LOADER_STARTING");
+                    GApplication app = AppLoader.runApp(APP_NAME);
+                    if (app == null) {
+                        throw new RuntimeException("Unable to start " + APP_NAME);
+                    }
+                    startHostBridge(app);
+                } catch (Throwable error) {
+                    System.out.println("[j2me-web] HOST_BRIDGE_FAILED " + error);
+                }
+            }
+        }, "j2me-web-app-loader");
+        appLoader.setDaemon(true);
+        appLoader.start();
+        System.out.println("[j2me-web] GLFW_LOOP_STARTING");
         Glfw.executeMainLoop();
     }
 

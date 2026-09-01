@@ -167,7 +167,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     const createModule = options.moduleFactory ?? await loadModuleFactory(runtimeBaseUrl);
     module = await createModule(moduleOptions);
     await initialized.promise;
-    await withTimeout(frameWindow, hostBridgeReady.promise, 3000, "J2ME_HOST_BRIDGE_UNAVAILABLE");
+    await withTimeout(frameWindow, hostBridgeReady.promise, 60000, "J2ME_HOST_BRIDGE_UNAVAILABLE");
     surface.source.focus({ preventScroll: true });
     const mirror = () => {
       if (exited) return;
