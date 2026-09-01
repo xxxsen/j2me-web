@@ -7,6 +7,25 @@ export function resumeRuntimeAudio(frameWindow) {
     found = true;
     if (context.state !== "running") void context.resume().catch(() => undefined);
   }
+  const browserContext = frameWindow?.__j2meWebAudio?.context;
+  if (browserContext) {
+    found = true;
+    if (browserContext.state !== "running") void browserContext.resume().catch(() => undefined);
+  }
+  return found;
+}
+
+export function suspendRuntimeAudio(frameWindow) {
+  const contexts = new Set([
+    ...(frameWindow?.miniaudio?.devices || []).map((device) => device?.webaudio),
+    frameWindow?.__j2meWebAudio?.context
+  ]);
+  let found = false;
+  for (const context of contexts) {
+    if (!context) continue;
+    found = true;
+    if (context.state === "running") void context.suspend().catch(() => undefined);
+  }
   return found;
 }
 

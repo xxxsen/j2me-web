@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { installAudioActivation, resumeRuntimeAudio } from "../web/audio-policy.js";
+import {
+  installAudioActivation,
+  resumeRuntimeAudio,
+  suspendRuntimeAudio
+} from "../web/audio-policy.js";
 
 test("runtime audio starts suspended Web Audio devices by default", () => {
   let resumeCalls = 0;
@@ -17,6 +21,31 @@ test("runtime audio starts suspended Web Audio devices by default", () => {
   assert.equal(resumeRuntimeAudio(frameWindow), true);
   assert.equal(resumeCalls, 1);
   assert.equal(resumeRuntimeAudio({}), false);
+});
+
+test("runtime audio also resumes the direct browser audio backend", () => {
+  let resumeCalls = 0;
+  const frameWindow = {
+    __j2meWebAudio: {
+      context: { state: "suspended", resume: () => { resumeCalls += 1; return Promise.resolve(); } }
+    }
+  };
+
+  assert.equal(resumeRuntimeAudio(frameWindow), true);
+  assert.equal(resumeCalls, 1);
+});
+
+test("pause suspends both legacy and direct browser audio contexts", () => {
+  let suspendCalls = 0;
+  const context = { state: "running", suspend: () => { suspendCalls += 1; return Promise.resolve(); } };
+  const frameWindow = {
+    miniaudio: { devices: [{ webaudio: context }] },
+    __j2meWebAudio: { context }
+  };
+
+  assert.equal(suspendRuntimeAudio(frameWindow), true);
+  assert.equal(suspendCalls, 1);
+  assert.equal(suspendRuntimeAudio({}), false);
 });
 
 test("keyboard and pointer activation retry audio without a separate sound control", () => {

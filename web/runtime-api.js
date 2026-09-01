@@ -1,5 +1,5 @@
 import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckpoint } from "./checkpoint-codec.js";
-import { installAudioActivation, resumeRuntimeAudio } from "./audio-policy.js";
+import { installAudioActivation, resumeRuntimeAudio, suspendRuntimeAudio } from "./audio-policy.js";
 import { GameRuntimeController } from "./runtime-controller.js";
 import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
 import {
@@ -612,10 +612,7 @@ function withTimeout(frameWindow, promise, milliseconds, code) {
 }
 
 function pauseAudio(frameWindow) {
-  for (const device of frameWindow.miniaudio?.devices || []) {
-    const context = device?.webaudio;
-    if (context?.state === "running") void context.suspend().catch(() => undefined);
-  }
+  suspendRuntimeAudio(frameWindow);
 }
 
 function canvasBlob(canvas) {

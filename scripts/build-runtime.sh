@@ -136,6 +136,7 @@ javac -source 8 -target 8 -encoding UTF-8 \
 cp -R "$PLUS/resources/." /build/classes/freej2me-plus/
 cp -R "$PLUS/META-INF/." /build/classes/freej2me-plus/META-INF/
 jar cf "$DIST/lib/freej2me-plus.jar" -C /build/classes/freej2me-plus .
+java -cp /build/classes/freej2me-plus org.recompile.mobile.MiniJvmPlatformPlayerTest
 
 mkdir -p /build/classes/freej2me
 find "$APP/src/main/java" -name "*.java" \
@@ -150,6 +151,18 @@ javac -source 8 -target 8 -encoding UTF-8 \
 cp -R "$APP/src/main/resource/." /build/classes/freej2me/
 cp "$DIST/lib/freej2me-plus.jar" /build/classes/freej2me/lib/freej2me.jar
 jar cf "$DIST/lib/freej2meonminijvm.jar" -C /build/classes/freej2me .
+
+if [[ -d "$APP/src/test/java" ]]; then
+  mkdir -p /build/classes/freej2me-tests
+  find "$APP/src/test/java" -name "*.java" -print > /build/classes/freej2me-tests/sources.txt
+  javac -source 8 -target 8 -encoding UTF-8 \
+    -cp "/build/classes/freej2me:$DIST/lib/freej2me-plus.jar" \
+    -d /build/classes/freej2me-tests @/build/classes/freej2me-tests/sources.txt
+  java -cp "/build/classes/freej2me:/build/classes/freej2me-tests:$DIST/lib/freej2me-plus.jar" \
+    com.ebsee.emu.audio.ExactLengthReaderTest
+  java -cp "/build/classes/freej2me:/build/classes/freej2me-tests:$DIST/lib/freej2me-plus.jar" \
+    com.ebsee.emu.audio.DeferredAudioHandleTest
+fi
 
 mkdir -p /build/classes/launcher
 find /project/src/java -name "*.java" -print > /build/classes/launcher/sources.txt
