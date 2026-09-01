@@ -1,6 +1,7 @@
 import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckpoint } from "./checkpoint-codec.js";
 import { installAudioActivation, resumeRuntimeAudio } from "./audio-policy.js";
 import { GameRuntimeController } from "./runtime-controller.js";
+import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
 import {
   VIDEO_SCALING_MODES,
   computePresentationSize,
@@ -22,7 +23,7 @@ const capabilities = Object.freeze({
   pause: true,
   screenshot: true,
   standardGamepad: true,
-  validationProbes: Object.freeze([]),
+  validationProbes: Object.freeze([INPUT_PROBE_KIND]),
   videoScalingModes: VIDEO_SCALING_MODES,
   volume: false
 });
@@ -116,9 +117,15 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   let exitReported = false;
   const hostBridgeReady = deferred();
   const pressedGamepadKeys = new Set();
+  let inputProbe = null;
 
   const diagnostic = (message) => options.onDiagnostic?.({ runtime: "j2me", message: String(message) });
   const reportCoreOutput = (message, error = false) => {
+    const nextInputProbe = consumeInputProbe(message, inputProbe);
+    if (nextInputProbe !== inputProbe) {
+      inputProbe = nextInputProbe;
+      return;
+    }
     diagnostic(`${error ? "[error] " : ""}${message}`);
     if (/HOST_BRIDGE_READY/u.test(String(message))) hostBridgeReady.resolve();
     if (/HOST_BRIDGE_FAILED/u.test(String(message))) hostBridgeReady.reject(new Error("J2ME_HOST_BRIDGE_UNAVAILABLE"));
@@ -244,7 +251,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     },
     getFrameCount: () => frameCount,
     getScalingMode: () => scalingMode,
-    getValidationProbe: () => null,
+    getValidationProbe: (kind) => kind === INPUT_PROBE_KIND ? inputProbe : null,
     pause: async () => {
       if (exited || paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
       paused = true;

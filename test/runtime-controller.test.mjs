@@ -10,7 +10,7 @@ const capabilities = Object.freeze({
   pause: true,
   screenshot: true,
   standardGamepad: true,
-  validationProbes: Object.freeze([]),
+  validationProbes: Object.freeze(["J2ME_INPUT_V1"]),
   videoScalingModes: Object.freeze(["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"]),
   volume: false
 });
@@ -22,7 +22,9 @@ function adapterFixture(overrides = {}) {
     getCanvas: () => ({ tagName: "CANVAS" }),
     getCheckpointAvailability: () => ({ available: true, blocker: null }),
     getFrameCount: () => 12,
-    getValidationProbe: () => null,
+    getValidationProbe: (kind) => kind === "J2ME_INPUT_V1"
+      ? { kind, keyCode: -5, schemaVersion: 1, sequence: 1 }
+      : null,
     pause: async () => undefined,
     resume: async () => undefined,
     screenshot: async () => new Blob([Uint8Array.of(1)], { type: "image/png" }),
@@ -42,6 +44,9 @@ test("controller exposes the Retrom lifecycle and serializes host operations", a
   await runtime.mount({});
   assert.equal(runtime.getState(), "RUNNING");
   assert.equal(runtime.getFrameCount(), 12);
+  assert.deepEqual(runtime.getValidationProbe("J2ME_INPUT_V1"), {
+    kind: "J2ME_INPUT_V1", keyCode: -5, schemaVersion: 1, sequence: 1
+  });
   assert.equal(runtime.getScalingMode(), "SHARP_FIT");
   runtime.setScalingMode("INTEGER_NEAREST");
   assert.equal(runtime.getScalingMode(), "SHARP_FIT");

@@ -3,4 +3,5 @@
 public/runtime/*
 !public/runtime/.gitkeep
 /release/
+/node_modules/
 npm-debug.log*

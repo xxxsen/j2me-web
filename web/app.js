@@ -156,6 +156,7 @@ async function startGame() {
         appendLog(message.replace(/^\[error\]\s*/u, ""), isError);
       }
     });
+    window.__j2meDemoRuntime = runtime;
     subscribeRuntime(runtime);
     appendLog(`准备启动：${source.name}`);
     await runtime.mount(screenSurface);
@@ -165,6 +166,7 @@ async function startGame() {
     checkpointButton.disabled = !runtime.getCheckpointAvailability().available;
   } catch (error) {
     runtime = null;
+    window.__j2meDemoRuntime = null;
     updateBadge("启动失败", "error");
     appendLog(error instanceof Error ? error.message : error, true);
     startButton.disabled = false;
