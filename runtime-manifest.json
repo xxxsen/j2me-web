@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageName": "j2me-web",
-  "packageVersion": "0.1.0",
+  "packageVersion": "0.1.1",
   "publicApiVersion": 1,
   "admissionStatus": "CANDIDATE",
   "adapter": {
@@ -40,6 +40,7 @@
     "runtime.worker.js",
     "runtime-api.js",
     "runtime-controller.js",
-    "checkpoint-codec.js"
+    "checkpoint-codec.js",
+    "audio-policy.js"
   ]
 }

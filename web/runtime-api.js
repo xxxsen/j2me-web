@@ -1,4 +1,5 @@
 import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckpoint } from "./checkpoint-codec.js";
+import { installAudioActivation, resumeRuntimeAudio } from "./audio-policy.js";
 import { GameRuntimeController } from "./runtime-controller.js";
 
 export const J2ME_ADAPTER_KIND = "J2ME_MINIJVM_WEB";
@@ -154,7 +155,11 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
 
   const pointerHandlers = installPointerForwarding(surface, frameWindow, () => {
     surface.source.focus({ preventScroll: true });
-    resumeAudio(frameWindow);
+    resumeRuntimeAudio(frameWindow);
+  });
+  const audioActivation = installAudioActivation({
+    frameWindow,
+    targets: [surface.source, surface.display]
   });
   applyViewMode(surface, viewMode);
 
@@ -170,11 +175,12 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
         if (viewMode === "LCD") drawLcd(surface, viewport);
         updateGamepad(frameWindow, surface.source, pressedGamepadKeys);
         frameCount += 1;
+        if (frameCount % 30 === 0) resumeRuntimeAudio(frameWindow);
       }
       mirrorFrame = frameWindow.requestAnimationFrame(mirror);
     };
     mirrorFrame = frameWindow.requestAnimationFrame(mirror);
-    resumeAudio(frameWindow);
+    resumeRuntimeAudio(frameWindow);
   } catch (error) {
     cleanup();
     throw stableJ2meError(error);
@@ -190,6 +196,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     exited = true;
     if (mirrorFrame) frameWindow.cancelAnimationFrame(mirrorFrame);
     releaseKeys(frameWindow, surface.source, pressedGamepadKeys);
+    audioActivation.remove();
     pointerHandlers.remove();
     try { module?.pauseMainLoop?.(); } catch { /* The frame may already be tearing down. */ }
     pauseAudio(frameWindow);
@@ -237,7 +244,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       if (exited || !paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
       module.resumeMainLoop?.();
       paused = false;
-      resumeAudio(frameWindow);
+      resumeRuntimeAudio(frameWindow);
       surface.source.focus({ preventScroll: true });
     },
     screenshot: () => canvasBlob(surface.display),
@@ -252,7 +259,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       viewport = { width: value.width, height: value.height };
       resizeDisplay(surface.display, viewport);
     },
-    unlockAudio: () => resumeAudio(frameWindow)
+    unlockAudio: () => resumeRuntimeAudio(frameWindow)
   };
 }
 
@@ -534,18 +541,6 @@ function withTimeout(frameWindow, promise, milliseconds, code) {
       (error) => { frameWindow.clearTimeout(timer); reject(error); }
     );
   });
-}
-
-function resumeAudio(frameWindow) {
-  const devices = frameWindow.miniaudio?.devices || [];
-  let found = false;
-  for (const device of devices) {
-    const context = device?.webaudio;
-    if (!context) continue;
-    found = true;
-    if (context.state !== "running") void context.resume().catch(() => undefined);
-  }
-  return found;
 }
 
 function pauseAudio(frameWindow) {

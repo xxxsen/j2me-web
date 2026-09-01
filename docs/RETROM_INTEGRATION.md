@@ -4,7 +4,7 @@
 
 ## 准入能力对照
 
-| Retrom 能力 | j2me-web 0.1.0 | 说明 |
+| Retrom 能力 | j2me-web 0.1.1 | 说明 |
 | --- | --- | --- |
 | 模块化实例 | 已完成 | Emscripten 使用 `MODULARIZE + EXPORT_ES6`，不再占用 `window.Module` |
 | 统一生命周期 | 已完成 | 状态、串行操作、取消、幂等退出和公共事件由 `GameRuntimeController` 管理 |
@@ -36,7 +36,7 @@ const config = {
   adapter: {
     adapterKind: "J2ME_MINIJVM_WEB",
     adapterId: "j2me-minijvm-web",
-    runtimeBaseUrl: "https://assets.example/j2me/v0.1.0/",
+    runtimeBaseUrl: "https://assets.example/j2me/v0.1.1/",
     storage: "HOST",
     viewport: { width: 240, height: 320 }
   }

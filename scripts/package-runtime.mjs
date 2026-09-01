@@ -26,6 +26,7 @@ const sources = [
   "web/runtime-api.js",
   "web/runtime-controller.js",
   "web/checkpoint-codec.js",
+  "web/audio-policy.js",
   "runtime-manifest.json",
   "THIRD_PARTY_NOTICES.md"
 ];
@@ -55,8 +56,8 @@ const metadata = {
   repository: "https://github.com/xxxsen/j2me-web",
   schemaVersion: 1,
   sourceCommits: {
-    freej2meOnMinijvm: "beda00ab807b3c25d6099a0942a59e6c1580c5a6",
-    freej2mePlus: "3f8e2742acebe69eecbb99320e09e4128ff41628",
+    freej2meOnMinijvm: "e90225a2f992bec746435293fd2b9c401df9f5cc",
+    freej2mePlus: "bc6fc7cd03d8d7eeae40bceb86d7424efbacbc18",
     miniJVM: "1778bd07fea64213d5e4d3061a489044abf458e7"
   },
   tag
