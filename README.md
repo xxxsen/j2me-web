@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的浏览器 J2ME 运行时。它把 miniJVM 编译为 WebAssembly，以 FreeJ2ME Plus 提供 MIDP/厂商 API 实现，并通过一个轻量页面加载 fixture 或本地 JAR。
 
-当前版本为 `0.2.1`。在既有 Retrom 公共 API、RMS checkpoint、画面/音频和端到端输入修复之上，本版恢复了 Emscripten pthread 下的 miniJVM GC：浏览器主循环正确参与 safepoint，stop-the-world 使用稳定线程集合，所有协调等待都有取消边界，并通过 `J2ME_GC_V1` 自动验证回收量、堆平台、渲染存活和 GC 后输入。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
+当前版本为 `0.2.2`。本版修复 miniJVM 类初始化失败后污染调用者操作数栈的问题，并让 MIDI 在 `Player` 创建时立即异步准备；《仙剑奇侠传》现在无需确认“新的历程”或进入地图，即可在主菜单开始背景音乐。既有 Retrom 公共 API、RMS checkpoint、画面缩放、端到端输入和 pthread GC 契约保持不变。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -96,7 +96,7 @@ miniJVM.wasm ── WebLauncher ── freej2meOnMinijvm
         └── TinySoundFont ────────────────┘──► Web Audio
 ```
 
-音频资源在 FreeJ2ME Plus 的已知字节边界内直接交给轻量 miniJVM Player，不再经过临时文件 EOF 探测或加载整套桌面 Java Sound。损坏的派生切片流会从最近的完整资源中恢复结构有效的打包 MIDI；MIDI 由 TinySoundFont 和 TimGM6mb SoundFont 以 22.05 kHz 单声道渲染，同内容请求共享结果，再由浏览器主线程上的 Web Audio 解码和播放。运行时会在启动和用户输入时自动恢复音频，并在暂停/退出时挂起。这条链路修复了此前的噪音、浑浊、长时间静音以及《仙剑奇侠传》无背景音乐问题。
+音频资源在 FreeJ2ME Plus 的已知字节边界内直接交给轻量 miniJVM Player，不再经过临时文件 EOF 探测或加载整套桌面 Java Sound。损坏的派生切片流会从最近的完整资源中恢复结构有效的打包 MIDI；MIDI 在 Player 创建时立即于后台准备，由 TinySoundFont 和 TimGM6mb SoundFont 以 22.05 kHz 单声道渲染，同内容请求共享结果，再由浏览器主线程上的 Web Audio 解码和播放。运行时会在启动和用户输入时自动恢复音频，并在暂停/退出时挂起。miniJVM 会隔离类初始化期间被抑制的解析异常，避免它们破坏 MIDlet 正在执行的播放器赋值表达式。这条链路修复了此前的噪音、浑浊、长时间静音，以及《仙剑奇侠传》必须进入地图后才有背景音乐的问题。
 
 `server.mjs` 会为全部响应设置以下头部，部署到其他静态服务器时必须等价保留：
 
@@ -112,9 +112,9 @@ Cross-Origin-Resource-Policy: same-origin
 
 | 层 | 仓库 | 固定提交 | 上游基线 |
 | --- | --- | --- | --- |
-| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `86909d6532961ea261758cf27e35a84f0174afe0` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
-| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `74b4ce5d61dadb30970783ba419b0aa4281c9802` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
-| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `fdafeb69cba129086c3f8fe9c84e8ddba50d432b` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
+| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
+| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `51aeb8b6af1784517cc17e924479956bf506eca9` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
+| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `4ee680cc5ad72f8fc842c9651420dc0318d8fa95` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
 
 此外固定使用 TinySoundFont `853a0a171759f1ddba0de1442133a75912bbeffa`、TimGM6mb SoundFont（SHA-256 `c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854`）、Emscripten 3.1.46 和 Eclipse Temurin 8。
 
@@ -142,12 +142,15 @@ npm ci
 npm run check
 npm run build:runtime
 npm run test:input
+npm run test:audio
 npm run test:gc
 npm run release:build
 ```
 
 `test:input` 会启动真实 Wasm/MIDlet 和无头 Chromium，依次发送方向键、WASD、确认、左右软键及 0–9，并断言 FreeJ2ME 在交给 MIDlet 前观察到的最终键值，共覆盖 21 个浏览器按键；它不是只测 DOM `KeyboardEvent` 的映射表。
 
+`test:audio` 只向《仙剑奇侠传》的“按任意键继续”发送一次确认键，随后停留在“新的历程 / 旧的回忆”主菜单；测试会等待 MIDI 解码和 Web Audio 进入运行状态，并断言没有媒体初始化异常。它不会通过进入地图来误判主菜单音乐已经修复。
+
 `test:gc` 会在真实 Wasm/MIDlet 中等待至少 3 个 GC 周期，断言有对象被回收、GC 后 Java 堆不持续发散、每次真实 STW 不超过默认 2 秒、画面帧继续推进，并在 GC 后再次验证输入。可用 `J2ME_GC_TEST_CYCLES=30 npm run test:gc` 做更长 soak，或用 `J2ME_GC_TEST_FIXTURE=仙剑奇侠传` 切换样本。
 
-miniJVM GC 现已在 pthread 浏览器构建中启用。6 轮《魔塔》回归的 GC 后 Java 堆稳定在约 34–36 MiB，累计回收约 100 MiB；《魔塔》和《仙剑奇侠传》观察到的最大真实 STW 分别为 4 ms 和 97 ms。Wasm 线性内存达到过的高水位不会向浏览器归还，但已释放块会被后续分配复用；正式服务仍应持续做小时级场景切换、真实手柄以及 Chrome 之外的多浏览器回归。
+miniJVM GC 现已在 pthread 浏览器构建中启用。6 轮《魔塔》回归的 GC 后 Java 堆稳定在约 34–36 MiB，累计回收约 100 MiB；`0.2.2` 发布候选中《魔塔》和《仙剑奇侠传》观察到的最大真实 STW 分别为 87 ms 和 97 ms。Wasm 线性内存达到过的高水位不会向浏览器归还，但已释放块会被后续分配复用；正式服务仍应持续做小时级场景切换、真实手柄以及 Chrome 之外的多浏览器回归。

@@ -59,9 +59,9 @@ const metadata = {
   repository: "https://github.com/xxxsen/j2me-web",
   schemaVersion: 1,
   sourceCommits: {
-    freej2meOnMinijvm: "74b4ce5d61dadb30970783ba419b0aa4281c9802",
-    freej2mePlus: "fdafeb69cba129086c3f8fe9c84e8ddba50d432b",
-    miniJVM: "86909d6532961ea261758cf27e35a84f0174afe0"
+    freej2meOnMinijvm: "51aeb8b6af1784517cc17e924479956bf506eca9",
+    freej2mePlus: "4ee680cc5ad72f8fc842c9651420dc0318d8fa95",
+    miniJVM: "a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0"
   },
   tag
 };
