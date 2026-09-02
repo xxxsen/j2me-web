@@ -31,7 +31,9 @@ const sources = [
   "web/checkpoint-codec.js",
   "web/audio-policy.js",
   "web/input-probe.js",
+  "web/key-state-probe.js",
   "web/gc-probe.js",
+  "web/graphics-probe.js",
   "web/video-scaling.js",
   "web/compatibility-profiles.js",
   "web/virtual-keypad.js",
@@ -65,10 +67,10 @@ const metadata = {
   repository: "https://github.com/xxxsen/j2me-web",
   schemaVersion: 1,
   sourceCommits: {
-    freej2meOnMinijvm: "1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e",
-    freej2mePlus: "ef35d77eef84d305d1d75769d0f7fdf1e6bc6509",
+    freej2meOnMinijvm: "b72d9606fe11e57559ef56ace528c6104537ea34",
+    freej2mePlus: "df5aed202aed01ea744d9e5f918a905634508169",
     ffmpeg: "db69d06eeeab4f46da15030a80d539efb4503ca8",
-    miniJVM: "bb23558a0caae6ceb809301c9af299590c967d3a"
+    miniJVM: "1533f6f9d858cdd67f3262811f2410b1a42a7255"
   },
   tag
 };

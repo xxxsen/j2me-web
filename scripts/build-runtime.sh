@@ -5,11 +5,11 @@ PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CACHE_ROOT="$PROJECT_ROOT/.cache/upstream"
 OUTPUT_ROOT="$PROJECT_ROOT/public/runtime"
 MINIJVM_REPOSITORY="${MINIJVM_REPOSITORY:-https://github.com/xxxsen/miniJVM.git}"
-MINIJVM_COMMIT="${MINIJVM_COMMIT:-bb23558a0caae6ceb809301c9af299590c967d3a}"
+MINIJVM_COMMIT="${MINIJVM_COMMIT:-1533f6f9d858cdd67f3262811f2410b1a42a7255}"
 FREEJ2ME_REPOSITORY="${FREEJ2ME_REPOSITORY:-https://github.com/xxxsen/freej2meOnMinijvm.git}"
-FREEJ2ME_COMMIT="${FREEJ2ME_COMMIT:-1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e}"
+FREEJ2ME_COMMIT="${FREEJ2ME_COMMIT:-b72d9606fe11e57559ef56ace528c6104537ea34}"
 FREEJ2ME_PLUS_REPOSITORY="${FREEJ2ME_PLUS_REPOSITORY:-https://github.com/xxxsen/freej2me-plus.git}"
-FREEJ2ME_PLUS_COMMIT="${FREEJ2ME_PLUS_COMMIT:-ef35d77eef84d305d1d75769d0f7fdf1e6bc6509}"
+FREEJ2ME_PLUS_COMMIT="${FREEJ2ME_PLUS_COMMIT:-df5aed202aed01ea744d9e5f918a905634508169}"
 TINYSOUNDFONT_REPOSITORY="https://github.com/schellingb/TinySoundFont.git"
 TINYSOUNDFONT_COMMIT="853a0a171759f1ddba0de1442133a75912bbeffa"
 FFMPEG_REPOSITORY="https://github.com/FFmpeg/FFmpeg.git"
@@ -132,6 +132,14 @@ mkdir -p "$DIST/lib"
 compile_jar "$MINI/minijvm/java/src/main" "$DIST/lib/minijvm_rt.jar" . . /build/classes/minijvm
 compile_jar "$MINI/desktop/glfw_gui/java/src/main" "$DIST/lib/glfw_gui.jar" "$DIST/lib/minijvm_rt.jar" . /build/classes/glfw
 compile_jar "$MINI/extlib/xgui/src/main" "$DIST/lib/xgui.jar" "$DIST/lib/minijvm_rt.jar" "$DIST/lib/glfw_gui.jar" /build/classes/xgui
+mkdir -p /build/classes/xgui-tests
+javac -source 8 -target 8 -encoding UTF-8 \
+  -bootclasspath "$DIST/lib/minijvm_rt.jar" \
+  -cp "$DIST/lib/glfw_gui.jar:$DIST/lib/xgui.jar" \
+  -d /build/classes/xgui-tests \
+  "$MINI/extlib/xgui/src/test/java/org/mini/apploader/AppLoaderClassPathTest.java"
+java -cp "/build/classes/xgui-tests:$DIST/lib/xgui.jar:$DIST/lib/glfw_gui.jar:$DIST/lib/minijvm_rt.jar" \
+  org.mini.apploader.AppLoaderClassPathTest
 
 # Build FreeJ2ME-Plus from the pinned fork source with the full JDK 8 API. The
 # miniJVM adapter supplies the AWT and Java Sound implementations at runtime.
@@ -143,13 +151,12 @@ cp -R "$PLUS/resources/." /build/classes/freej2me-plus/
 cp -R "$PLUS/META-INF/." /build/classes/freej2me-plus/META-INF/
 jar cf "$DIST/lib/freej2me-plus.jar" -C /build/classes/freej2me-plus .
 java -cp /build/classes/freej2me-plus org.recompile.mobile.MiniJvmPlatformPlayerTest
+java -cp /build/classes/freej2me-plus org.recompile.mobile.MiniJvmKeyStateTest
 java -cp /build/classes/freej2me-plus org.recompile.freej2me.MiniJvmFrontendProfileTest
+java -cp /build/classes/freej2me-plus javax.microedition.m3g.MiniJvmGraphics3DBackendTest
 
 mkdir -p /build/classes/freej2me
 find "$APP/src/main/java" -name "*.java" \
-  ! -path "*/javax/microedition/m3g/MiniJvmGraphics3DFactory.java" \
-  ! -path "*/com/mascotcapsule/micro3d/v3/MiniJvmMicro3dFactory.java" \
-  ! -path "*/com/mascotcapsule/micro3d/v3/base/MiniJvmMicro3dGlBackend.java" \
   -print > /build/classes/freej2me/sources.txt
 javac -source 8 -target 8 -encoding UTF-8 \
   -bootclasspath "$DIST/lib/minijvm_rt.jar" \
@@ -171,6 +178,8 @@ if [[ -d "$APP/src/test/java" ]]; then
     com.ebsee.emu.audio.DeferredAudioHandleTest
   java -cp "/build/classes/freej2me:/build/classes/freej2me-tests:$DIST/lib/freej2me-plus.jar" \
     com.ebsee.emu.CompatibilityProfileReaderTest
+  java -cp "/build/classes/freej2me:/build/classes/freej2me-tests:$DIST/lib/freej2me-plus.jar" \
+    com.mascotcapsule.micro3d.v3.MiniJvmMicro3dCoreTest
 fi
 
 mkdir -p /build/classes/launcher
@@ -193,7 +202,7 @@ set -euo pipefail
 mapfile -t vm_sources < <(find minijvm/c -type f -name "*.c" ! -path "*/utils/sljit/*" ! -path "*/utils/mimalloc/*" ! -path "*/cmake-*" ! -path "*/.*")
 mapfile -t gui_sources < <(find desktop/glfw_gui/c -type f -name "*.c" ! -path "*/glad/glad.c")
 
-emcc -O3 -o /build/wasm/runtime.js \
+emcc -O3 -msimd128 -o /build/wasm/runtime.js \
   -D EMSCRIPTEN_WINAPP \
   -I desktop/glfw_gui/c/deps/include \
   -I minijvm/c/jvm -I minijvm/c/utils -I minijvm/c/utils/sljit \
