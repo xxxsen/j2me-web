@@ -21,7 +21,13 @@
       "compatibilityProfiles": true,
       "frameCounter": true,
       "audioCodecs": ["MIDI", "WAV", "PCM", "AMR-NB", "AMR-WB", "AAC", "MP3"],
-      "validationProbes": ["J2ME_INPUT_V1", "J2ME_GC_V1", "J2ME_MEDIA_V1"],
+      "validationProbes": [
+        "J2ME_INPUT_V1",
+        "J2ME_KEY_STATE_V1",
+        "J2ME_GC_V1",
+        "J2ME_MEDIA_V1",
+        "J2ME_3D_V1"
+      ],
       "videoScalingModes": ["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"],
       "volume": true
     }
@@ -51,7 +57,9 @@
     "checkpoint-codec.js",
     "audio-policy.js",
     "input-probe.js",
+    "key-state-probe.js",
     "gc-probe.js",
+    "graphics-probe.js",
     "video-scaling.js",
     "compatibility-profiles.js",
     "virtual-keypad.js",

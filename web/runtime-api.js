@@ -3,7 +3,9 @@ import { installAudioActivation, resumeRuntimeAudio, suspendRuntimeAudio } from 
 import { createAudioTranscoder } from "./media-transcoder.js";
 import { GameRuntimeController } from "./runtime-controller.js";
 import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
+import { KEY_STATE_PROBE_KIND, consumeKeyStateProbe } from "./key-state-probe.js";
 import { GC_PROBE_KIND, consumeGcProbe } from "./gc-probe.js";
+import { GRAPHICS_PROBE_KIND, consumeGraphicsProbe } from "./graphics-probe.js";
 import {
   encodeCoreProfile,
   resolveCompatibilityProfile,
@@ -35,7 +37,9 @@ const capabilities = Object.freeze({
   standardGamepad: true,
   virtualKeyInput: true,
   virtualKeyActions: VIRTUAL_KEY_ACTIONS,
-  validationProbes: Object.freeze([INPUT_PROBE_KIND, GC_PROBE_KIND, MEDIA_PROBE_KIND]),
+  validationProbes: Object.freeze([
+    INPUT_PROBE_KIND, KEY_STATE_PROBE_KIND, GC_PROBE_KIND, MEDIA_PROBE_KIND, GRAPHICS_PROBE_KIND
+  ]),
   videoScalingModes: VIDEO_SCALING_MODES,
   volume: true
 });
@@ -146,7 +150,9 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   const pressedGamepadKeys = new Set();
   const pressedVirtualKeys = new Set();
   let inputProbe = null;
+  let keyStateProbe = null;
   let gcProbe = null;
+  let graphicsProbe = null;
 
   const diagnostic = (message) => options.onDiagnostic?.({ runtime: "j2me", message: String(message) });
   const reportCoreOutput = (message, error = false) => {
@@ -155,9 +161,19 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       inputProbe = nextInputProbe;
       return;
     }
+    const nextKeyStateProbe = consumeKeyStateProbe(message, keyStateProbe);
+    if (nextKeyStateProbe !== keyStateProbe) {
+      keyStateProbe = nextKeyStateProbe;
+      return;
+    }
     const nextGcProbe = consumeGcProbe(message, gcProbe);
     if (nextGcProbe !== gcProbe) {
       gcProbe = nextGcProbe;
+      return;
+    }
+    const nextGraphicsProbe = consumeGraphicsProbe(message, graphicsProbe);
+    if (nextGraphicsProbe !== graphicsProbe) {
+      graphicsProbe = nextGraphicsProbe;
       return;
     }
     diagnostic(`${error ? "[error] " : ""}${message}`);
@@ -298,8 +314,10 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     getScalingMode: () => scalingMode,
     getValidationProbe: (kind) => {
       if (kind === INPUT_PROBE_KIND) return inputProbe;
+      if (kind === KEY_STATE_PROBE_KIND) return keyStateProbe;
       if (kind === GC_PROBE_KIND) return gcProbe;
       if (kind === MEDIA_PROBE_KIND) return mediaProbe(frameWindow, mediaTranscoder);
+      if (kind === GRAPHICS_PROBE_KIND) return graphicsProbe;
       return null;
     },
     pause: async () => {
@@ -413,7 +431,8 @@ function prepareFileSystem(moduleOptions, jarBytes, profile, storage, restored, 
   if (!fs.analyzePath(persistenceRoot).exists) fs.mkdirTree(persistenceRoot);
   const finish = () => {
     fs.writeFile("/game.jar", jarBytes);
-    fs.writeFile("/j2me-web-profile.properties", new TextEncoder().encode(encodeCoreProfile(profile)));
+    fs.writeFile("/appdata/freej2meonminijvm.jar/j2me-web-profile.properties",
+      new TextEncoder().encode(encodeCoreProfile(profile)));
     diagnostic(`compatibility profile ${profile.id} (${profile.viewport.width}x${profile.viewport.height}, ${profile.phone})`);
     diagnostic(`game mounted at /game.jar (${jarBytes.byteLength} bytes)`);
   };

@@ -12,7 +12,7 @@ test("the browser compatibility profile reaches the miniJVM frontend", async () 
   const runtimeApi = await readFile(new URL("../web/runtime-api.js", import.meta.url), "utf8");
   const build = await readFile(new URL("../scripts/build-runtime.sh", import.meta.url), "utf8");
 
-  assert.match(runtimeApi, /\/j2me-web-profile\.properties/u);
+  assert.match(runtimeApi, /\/appdata\/freej2meonminijvm\.jar\/j2me-web-profile\.properties/u);
   assert.match(build, /MiniJvmFrontendProfileTest/u);
 });
 
