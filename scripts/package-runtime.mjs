@@ -28,6 +28,7 @@ const sources = [
   "web/checkpoint-codec.js",
   "web/audio-policy.js",
   "web/input-probe.js",
+  "web/gc-probe.js",
   "web/video-scaling.js",
   "runtime-manifest.json",
   "THIRD_PARTY_NOTICES.md"
@@ -60,7 +61,7 @@ const metadata = {
   sourceCommits: {
     freej2meOnMinijvm: "74b4ce5d61dadb30970783ba419b0aa4281c9802",
     freej2mePlus: "fdafeb69cba129086c3f8fe9c84e8ddba50d432b",
-    miniJVM: "664f358db5d62b0ae2faffcf8b653c851001627e"
+    miniJVM: "86909d6532961ea261758cf27e35a84f0174afe0"
   },
   tag
 };

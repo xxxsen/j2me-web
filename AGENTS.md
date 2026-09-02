@@ -20,6 +20,7 @@
 - 每个 session 使用宿主提供的 frame/window。运行时需要 WebAssembly threads、`SharedArrayBuffer`、WebGL2 与 Web Audio；宿主必须提供 COOP/COEP。
 - 标准手柄至少覆盖方向键、确认、取消和菜单，并在暂停、退出或手柄断开时释放全部按键。不能把键盘可用当成手柄已验证。
 - 浏览器输入映射变化必须运行 `npm run test:input`；该测试以 `J2ME_INPUT_V1` 在 FreeJ2ME 的 MIDlet 事件队列入口观察最终键值，不能退化成只断言 DOM/GLFW 映射表。
+- miniJVM GC、线程挂起、浏览器主循环或内存分配变化必须运行 `npm run test:gc`；该测试必须保留真实 Wasm/MIDlet 的多周期回收、堆平台、STW 上限、帧推进和 GC 后输入断言，不能只检查一条 GC 日志。
 - `pause()`/`resume()`、`screenshot()`、`getCanvas()`、帧计数和核心主动退出必须走公共接口。运行时清理后不得留下可交互 canvas 或继续允许 checkpoint。
 - `HOST` 存储由宿主传入/取走 checkpoint；`BROWSER` 仅供 Demo 的 IDBFS 持久化。不得让 Retrom session 意外读取 Demo 或另一游戏的浏览器存档。
 
@@ -42,6 +43,7 @@ npm ci
 npm run check
 npm run build:runtime
 npm run test:input
+npm run test:gc
 npm run release:build
 ```
 

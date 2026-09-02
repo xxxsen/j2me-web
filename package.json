@@ -1,6 +1,6 @@
 {
   "name": "j2me-web",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,8 @@
     "dev": "node server.mjs",
     "test": "node --test",
     "test:input": "xvfb-run -a node scripts/verify-input.mjs",
-    "check": "node --check server.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && node --check web/audio-policy.js && node --check web/input-probe.js && node --check web/video-scaling.js && npm test",
+    "test:gc": "xvfb-run -a node scripts/verify-gc.mjs",
+    "check": "node --check server.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && node --check web/audio-policy.js && node --check web/input-probe.js && node --check web/gc-probe.js && node --check web/video-scaling.js && npm test",
     "release:build": "node scripts/package-runtime.mjs"
   },
   "engines": {

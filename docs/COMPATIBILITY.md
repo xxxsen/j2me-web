@@ -1,6 +1,6 @@
 # 兼容性报告
 
-本报告对应 `j2me-web 0.2.0` 及 README 中固定的三个 fork 提交。测试环境为 Linux x86_64、Chromium、WebAssembly pthread、软件 WebGL2 和 Web Audio。结果只代表实际走过的路径，不代表整个游戏已通关。
+本报告对应 `j2me-web 0.2.1` 及 README 中固定的三个 fork 提交。测试环境为 Linux x86_64、Chromium、WebAssembly pthread、软件 WebGL2 和 Web Audio。结果只代表实际走过的路径，不代表整个游戏已通关。
 
 ## 样本结果
 
@@ -27,13 +27,14 @@
 | 标准手柄 | 已接入 | 标准映射覆盖方向、A 确认、B 取消、X/Start 菜单并在暂停/退出时释放；仍需真实手柄矩阵回归 |
 | 宿主 checkpoint | 部分 | RMS 文件树可导出为绑定游戏摘要且不超过 2 MiB 的 `j2me-rms-bundle-v1`，并可在新页面实例启动前恢复；它不是 miniJVM 执行状态快照 |
 | 输入契约 | 已自动化 | 无头 Chromium 向真实 Wasm 发送 21 个键，并在 FreeJ2ME 的 MIDlet 事件队列入口断言方向、确认、软键和 0–9 最终键值 |
+| Wasm GC | 已自动化 | miniJVM GC 已在 pthread 构建启用；`J2ME_GC_V1` 记录堆前后、回收量、锁等待和真实 STW，测试同时检查帧推进与 GC 后输入 |
 | MIDI | 可用 | TinySoundFont + TimGM6mb 以 22.05 kHz 单声道离线渲染、同内容缓存、Web Audio 直连播放；支持恢复损坏派生流中的结构化 MIDI |
 | PCM/WAV | 已接入 | 浏览器 `decodeAudioData` 路径可用；样本覆盖少于 MIDI |
 | M3G / Mascot 3D | 部分 | FreeJ2ME Plus 有 API 实现，但 miniJVM WebGL 后端尚未完成全量回归 |
 | AMR、AAC、MP3、视频 | 未完成 | 尚无与 freej2me-web FFmpeg Wasm 等价的媒体桥 |
 | 厂商扩展 | 部分 | FreeJ2ME Plus 提供较广 API 面，实际游戏路径仍需逐项验证 |
 | 网络、短信、蓝牙 | 未验证 | 浏览器权限与传输桥尚未系统测试 |
-| 长时运行 | 风险项 | Emscripten 构建暂时禁用 miniJVM GC，需监控内存增长 |
+| 长时运行 | 初步通过 | 《魔塔》6 轮 GC 后 Java 堆约 34–36 MiB，未持续增长；仍需小时级、多场景和多浏览器 soak |
 
 ## 存档回归
 
@@ -41,7 +42,13 @@
 
 第二次存档后共生成 8 个 RMS 文件，总大小为 **922 B**。该数据远低于 2 MiB 阈值，因此当前不增加压缩层；这样可以避免为很小的数据引入格式版本、失败恢复和额外 CPU 开销。后续若单游戏存档实际超过 2 MiB，再在导出/导入边界增加带版本标识的压缩格式，不改变游戏看到的 RecordStore 数据。
 
-`0.2.0` 的公共 API（checkpoint ABI 自 `0.1.0` 未变）另用同一组文件导出了 1202 B 的 `j2me-rms-bundle-v1`（额外字节为魔数、游戏 SHA-256、路径和长度元数据），并在新的页面/runtime 实例中于 MIDlet 启动前成功导入。需要强调：该结果证明了宿主保存数据的跨实例传递，不代表任意 MIDlet 都会跳过自身标题/读档菜单自动回到保存画面。
+`0.2.1` 的公共 API（checkpoint ABI 自 `0.1.0` 未变）另用同一组文件导出了 1202 B 的 `j2me-rms-bundle-v1`（额外字节为魔数、游戏 SHA-256、路径和长度元数据），并在新的页面/runtime 实例中于 MIDlet 启动前成功导入。需要强调：该结果证明了宿主保存数据的跨实例传递，不代表任意 MIDlet 都会跳过自身标题/读档菜单自动回到保存画面。
+
+## GC 回归
+
+miniJVM fork `86909d6532961ea261758cf27e35a84f0174afe0` 移除了 Emscripten 下的硬编码 GC 短路，并修复浏览器主循环 Runtime 未声明 blocking 导致的 safepoint 死锁。STW 期间锁定稳定线程集合，VM 协调锁、线程表锁和 safepoint 都有 5 秒取消边界；失败的周期会恢复 suspend 计数和 `isgc`，由后续周期重试。
+
+无头 Chromium 实测《魔塔》6 轮累计回收 105,448,203 B，GC 后 Java 堆依次为 34,381,260、35,318,894、35,348,638、36,030,538、35,937,243、35,936,551 B，已形成平台。最终代码再次验证《魔塔》3 轮（最大真实 STW 4 ms）和《仙剑奇侠传》2 轮（最大真实 STW 97 ms）；每轮前后帧计数增长，GC 后确认键仍到达 MIDlet。长类初始化造成的 GC 锁等待与真正 STW 分开记录，不能把 mutator 仍在运行的等待时间误报为画面冻结。
 
 ## 与 freej2me-web 对比
 
@@ -60,4 +67,4 @@
 | 移动端输入 | 指针映射与模拟器按键 | 响应式触控键盘、多点触控、按键重复更完善 |
 | 构建可控性 | JVM、适配层、核心均固定到 fork 提交 | 项目代码可构建，但依赖专有 CheerpJ 运行链路 |
 
-后续兼容性工作的优先级应为：恢复可用的 Wasm GC；完成 M3G/Mascot WebGL 路径；补充 AMR/MP3/视频；增加按游戏配置与 RMS 导入导出；最后完善移动端多点触控和按键重复。
+后续兼容性工作的优先级应为：扩大 Wasm GC 的小时级与多浏览器 soak；完成 M3G/Mascot WebGL 路径；补充 AMR/MP3/视频；增加按游戏配置与 RMS 导入导出；最后完善移动端多点触控和按键重复。

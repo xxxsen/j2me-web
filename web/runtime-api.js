@@ -2,6 +2,7 @@ import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckp
 import { installAudioActivation, resumeRuntimeAudio, suspendRuntimeAudio } from "./audio-policy.js";
 import { GameRuntimeController } from "./runtime-controller.js";
 import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
+import { GC_PROBE_KIND, consumeGcProbe } from "./gc-probe.js";
 import {
   VIDEO_SCALING_MODES,
   computePresentationSize,
@@ -23,7 +24,7 @@ const capabilities = Object.freeze({
   pause: true,
   screenshot: true,
   standardGamepad: true,
-  validationProbes: Object.freeze([INPUT_PROBE_KIND]),
+  validationProbes: Object.freeze([INPUT_PROBE_KIND, GC_PROBE_KIND]),
   videoScalingModes: VIDEO_SCALING_MODES,
   volume: false
 });
@@ -118,12 +119,18 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   const hostBridgeReady = deferred();
   const pressedGamepadKeys = new Set();
   let inputProbe = null;
+  let gcProbe = null;
 
   const diagnostic = (message) => options.onDiagnostic?.({ runtime: "j2me", message: String(message) });
   const reportCoreOutput = (message, error = false) => {
     const nextInputProbe = consumeInputProbe(message, inputProbe);
     if (nextInputProbe !== inputProbe) {
       inputProbe = nextInputProbe;
+      return;
+    }
+    const nextGcProbe = consumeGcProbe(message, gcProbe);
+    if (nextGcProbe !== gcProbe) {
+      gcProbe = nextGcProbe;
       return;
     }
     diagnostic(`${error ? "[error] " : ""}${message}`);
@@ -251,7 +258,11 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     },
     getFrameCount: () => frameCount,
     getScalingMode: () => scalingMode,
-    getValidationProbe: (kind) => kind === INPUT_PROBE_KIND ? inputProbe : null,
+    getValidationProbe: (kind) => {
+      if (kind === INPUT_PROBE_KIND) return inputProbe;
+      if (kind === GC_PROBE_KIND) return gcProbe;
+      return null;
+    },
     pause: async () => {
       if (exited || paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
       paused = true;

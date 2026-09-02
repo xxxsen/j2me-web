@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的浏览器 J2ME 运行时。它把 miniJVM 编译为 WebAssembly，以 FreeJ2ME Plus 提供 MIDP/厂商 API 实现，并通过一个轻量页面加载 fixture 或本地 JAR。
 
-当前版本为 `0.2.0`。在既有 Retrom 公共 API、RMS checkpoint 和颜色修复之上，本版让 MIDlet 启动不再阻塞浏览器事件循环，增加三种低分辨率缩放模式、端到端按键契约测试，并以轻量 miniJVM Player 和直连 Web Audio 修复《仙剑奇侠传》《魔塔》的启动、输入与静音问题。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
+当前版本为 `0.2.1`。在既有 Retrom 公共 API、RMS checkpoint、画面/音频和端到端输入修复之上，本版恢复了 Emscripten pthread 下的 miniJVM GC：浏览器主循环正确参与 safepoint，stop-the-world 使用稳定线程集合，所有协调等待都有取消边界，并通过 `J2ME_GC_V1` 自动验证回收量、堆平台、渲染存活和 GC 后输入。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -112,7 +112,7 @@ Cross-Origin-Resource-Policy: same-origin
 
 | 层 | 仓库 | 固定提交 | 上游基线 |
 | --- | --- | --- | --- |
-| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `664f358db5d62b0ae2faffcf8b653c851001627e` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
+| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `86909d6532961ea261758cf27e35a84f0174afe0` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
 | miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `74b4ce5d61dadb30970783ba419b0aa4281c9802` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
 | 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `fdafeb69cba129086c3f8fe9c84e8ddba50d432b` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
 
@@ -142,9 +142,12 @@ npm ci
 npm run check
 npm run build:runtime
 npm run test:input
+npm run test:gc
 npm run release:build
 ```
 
 `test:input` 会启动真实 Wasm/MIDlet 和无头 Chromium，依次发送方向键、WASD、确认、左右软键及 0–9，并断言 FreeJ2ME 在交给 MIDlet 前观察到的最终键值，共覆盖 21 个浏览器按键；它不是只测 DOM `KeyboardEvent` 的映射表。
 
-当前 Emscripten pthread 构建为规避 stop-the-world 死锁禁用了 miniJVM GC，长时间运行时内存可能持续增长；正式服务还应增加长时游戏、反复场景切换和多浏览器回归。
+`test:gc` 会在真实 Wasm/MIDlet 中等待至少 3 个 GC 周期，断言有对象被回收、GC 后 Java 堆不持续发散、每次真实 STW 不超过默认 2 秒、画面帧继续推进，并在 GC 后再次验证输入。可用 `J2ME_GC_TEST_CYCLES=30 npm run test:gc` 做更长 soak，或用 `J2ME_GC_TEST_FIXTURE=仙剑奇侠传` 切换样本。
+
+miniJVM GC 现已在 pthread 浏览器构建中启用。6 轮《魔塔》回归的 GC 后 Java 堆稳定在约 34–36 MiB，累计回收约 100 MiB；《魔塔》和《仙剑奇侠传》观察到的最大真实 STW 分别为 4 ms 和 97 ms。Wasm 线性内存达到过的高水位不会向浏览器归还，但已释放块会被后续分配复用；正式服务仍应持续做小时级场景切换、真实手柄以及 Chrome 之外的多浏览器回归。
