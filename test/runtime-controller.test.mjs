@@ -10,6 +10,8 @@ const capabilities = Object.freeze({
   pause: true,
   screenshot: true,
   standardGamepad: true,
+  virtualKeyInput: true,
+  virtualKeyActions: Object.freeze(["FIRE"]),
   validationProbes: Object.freeze(["J2ME_INPUT_V1"]),
   videoScalingModes: Object.freeze(["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"]),
   volume: false
@@ -30,10 +32,13 @@ function adapterFixture(overrides = {}) {
     screenshot: async () => new Blob([Uint8Array.of(1)], { type: "image/png" }),
     getScalingMode: () => "SHARP_FIT",
     setScalingMode: () => undefined,
+    setInput: (action, pressed) => inputEvents.push([action, pressed]),
     setVolume: null,
     ...overrides
   };
 }
+
+const inputEvents = [];
 
 test("controller exposes the Retrom lifecycle and serializes host operations", async () => {
   const adapter = adapterFixture();
@@ -49,6 +54,10 @@ test("controller exposes the Retrom lifecycle and serializes host operations", a
   });
   assert.equal(runtime.getScalingMode(), "SHARP_FIT");
   runtime.setScalingMode("INTEGER_NEAREST");
+  runtime.setInput("FIRE", true);
+  runtime.setInput("FIRE", false);
+  assert.deepEqual(inputEvents.splice(0), [["FIRE", true], ["FIRE", false]]);
+  assert.throws(() => runtime.setInput("INVALID", true), /J2ME_INPUT_INVALID/u);
   assert.equal(runtime.getScalingMode(), "SHARP_FIT");
   await runtime.pause();
   assert.equal(runtime.getState(), "PAUSED");

@@ -93,6 +93,15 @@ export class GameRuntimeController {
     this.adapter.setVolume(value);
   }
 
+  setInput(action, pressed) {
+    this.requireCapability("virtualKeyInput");
+    this.requireActiveState();
+    if (!this.capabilities.virtualKeyActions?.includes(action) || typeof pressed !== "boolean") {
+      throw new Error("J2ME_INPUT_INVALID");
+    }
+    this.requireAdapter().setInput(action, pressed);
+  }
+
   unlockAudio() {
     this.requireActiveState();
     return this.requireAdapter().unlockAudio?.() ?? false;

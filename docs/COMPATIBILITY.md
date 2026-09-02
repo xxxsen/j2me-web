@@ -25,6 +25,8 @@
 | RMS 持久化 | 已验证 | `/appdata/freej2meonminijvm.jar/rms/rms` 使用 IDBFS `autoPersist`；首次存档、页面重载、读取和恢复后运行均通过，仍需补充导入/导出及跨版本迁移工具 |
 | Retrom 公共生命周期 | 已验证 | 模块化实例可启动；状态/进度/READY 事件、暂停/继续、截图入口、退出清理与 checkpoint 可用性由统一 controller 管理 |
 | 标准手柄 | 已接入 | 标准映射覆盖方向、A 确认、B 取消、X/Start 菜单并在暂停/退出时释放；仍需真实手柄矩阵回归 |
+| 游戏兼容档案 | 已接入 | 按 JAR SHA-256 选择分辨率、机型、旋转、输入、音频及 3D 策略；宿主可使用同一严格结构覆盖，不依赖文件名 |
+| 移动端输入 | 已自动化 | 公共 `setInput()` 与响应式触屏键盘覆盖 19 个手机键、多点触控、长按重复以及失焦/暂停释放；Chrome 测试在 MIDlet 队列断言最终键值 |
 | 宿主 checkpoint | 部分 | RMS 文件树可导出为绑定游戏摘要且不超过 2 MiB 的 `j2me-rms-bundle-v1`，并可在新页面实例启动前恢复；它不是 miniJVM 执行状态快照 |
 | 输入契约 | 已自动化 | 无头 Chromium 向真实 Wasm 发送 21 个键，并在 FreeJ2ME 的 MIDlet 事件队列入口断言方向、确认、软键和 0–9 最终键值 |
 | Wasm GC | 已自动化 | miniJVM GC 已在 pthread 构建启用；`J2ME_GC_V1` 记录堆前后、回收量、锁等待和真实 STW，测试同时检查帧推进与 GC 后输入 |
@@ -68,8 +70,8 @@ miniJVM fork `a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0` 保留了 Emscripten GC 
 | MIDI | TinySoundFont + SoundFont + 直连 Web Audio | 精简 FluidSynth Wasm + AudioWorklet |
 | 其他媒体 | WAV/PCM 为主 | FFmpeg Wasm，可处理 AMR 等格式并桥接 video |
 | 存档 | IDBFS 自动持久化 | IndexedDB，并有按游戏数据导入/导出流程 |
-| 游戏配置 | 当前仅画面区域和基本运行控制 | 屏幕尺寸、手机型号、兼容开关、旋转、全屏等按游戏配置 |
-| 移动端输入 | 指针映射与模拟器按键 | 响应式触控键盘、多点触控、按键重复更完善 |
+| 游戏配置 | SHA-256 绑定档案覆盖屏幕、手机、旋转、输入、音频和 3D，并允许宿主覆盖 | 屏幕尺寸、手机型号、兼容开关、旋转、全屏等按游戏配置 |
+| 移动端输入 | 响应式触控键盘、多点触控、长按重复和公共虚拟键 API | 响应式触控键盘、多点触控、按键重复 |
 | 构建可控性 | JVM、适配层、核心均固定到 fork 提交 | 项目代码可构建，但依赖专有 CheerpJ 运行链路 |
 
 后续兼容性工作的优先级应为：扩大 Wasm GC 的小时级与多浏览器 soak；完成 M3G/Mascot WebGL 路径；补充 AMR/MP3/视频；增加按游戏配置与 RMS 导入导出；最后完善移动端多点触控和按键重复。

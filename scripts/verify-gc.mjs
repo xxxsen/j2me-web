@@ -26,7 +26,7 @@ try {
   await waitForServer(baseUrl);
   browser = await puppeteer.launch({
     executablePath: chromePath,
-    headless: false,
+    headless: true,
     args: ["--disable-dev-shm-usage", "--enable-unsafe-swiftshader", "--no-sandbox"]
   });
   const page = await browser.newPage();

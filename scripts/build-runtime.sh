@@ -7,9 +7,9 @@ OUTPUT_ROOT="$PROJECT_ROOT/public/runtime"
 MINIJVM_REPOSITORY="${MINIJVM_REPOSITORY:-https://github.com/xxxsen/miniJVM.git}"
 MINIJVM_COMMIT="${MINIJVM_COMMIT:-a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0}"
 FREEJ2ME_REPOSITORY="${FREEJ2ME_REPOSITORY:-https://github.com/xxxsen/freej2meOnMinijvm.git}"
-FREEJ2ME_COMMIT="${FREEJ2ME_COMMIT:-51aeb8b6af1784517cc17e924479956bf506eca9}"
+FREEJ2ME_COMMIT="${FREEJ2ME_COMMIT:-1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e}"
 FREEJ2ME_PLUS_REPOSITORY="${FREEJ2ME_PLUS_REPOSITORY:-https://github.com/xxxsen/freej2me-plus.git}"
-FREEJ2ME_PLUS_COMMIT="${FREEJ2ME_PLUS_COMMIT:-4ee680cc5ad72f8fc842c9651420dc0318d8fa95}"
+FREEJ2ME_PLUS_COMMIT="${FREEJ2ME_PLUS_COMMIT:-ef35d77eef84d305d1d75769d0f7fdf1e6bc6509}"
 TINYSOUNDFONT_REPOSITORY="https://github.com/schellingb/TinySoundFont.git"
 TINYSOUNDFONT_COMMIT="853a0a171759f1ddba0de1442133a75912bbeffa"
 SOUNDFONT_URL="https://raw.githubusercontent.com/musescore/musescore-old/0c1f25dc3cdd2f9332118fa221a344eb8f6ee702/mscore/share/sound/TimGM6mb.sf2"
@@ -137,6 +137,7 @@ cp -R "$PLUS/resources/." /build/classes/freej2me-plus/
 cp -R "$PLUS/META-INF/." /build/classes/freej2me-plus/META-INF/
 jar cf "$DIST/lib/freej2me-plus.jar" -C /build/classes/freej2me-plus .
 java -cp /build/classes/freej2me-plus org.recompile.mobile.MiniJvmPlatformPlayerTest
+java -cp /build/classes/freej2me-plus org.recompile.freej2me.MiniJvmFrontendProfileTest
 
 mkdir -p /build/classes/freej2me
 find "$APP/src/main/java" -name "*.java" \
@@ -162,6 +163,8 @@ if [[ -d "$APP/src/test/java" ]]; then
     com.ebsee.emu.audio.ExactLengthReaderTest
   java -cp "/build/classes/freej2me:/build/classes/freej2me-tests:$DIST/lib/freej2me-plus.jar" \
     com.ebsee.emu.audio.DeferredAudioHandleTest
+  java -cp "/build/classes/freej2me:/build/classes/freej2me-tests:$DIST/lib/freej2me-plus.jar" \
+    com.ebsee.emu.CompatibilityProfileReaderTest
 fi
 
 mkdir -p /build/classes/launcher

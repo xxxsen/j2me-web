@@ -16,6 +16,9 @@
       "checkpoint": true,
       "contentSources": ["J2ME_JAR_V1"],
       "standardGamepad": true,
+      "virtualKeyInput": true,
+      "virtualKeyActions": ["UP", "DOWN", "LEFT", "RIGHT", "FIRE", "SOFT_LEFT", "SOFT_RIGHT", "DIGIT_0", "DIGIT_1", "DIGIT_2", "DIGIT_3", "DIGIT_4", "DIGIT_5", "DIGIT_6", "DIGIT_7", "DIGIT_8", "DIGIT_9", "STAR", "POUND"],
+      "compatibilityProfiles": true,
       "frameCounter": true,
       "validationProbes": ["J2ME_INPUT_V1", "J2ME_GC_V1"],
       "videoScalingModes": ["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"],
@@ -45,6 +48,8 @@
     "audio-policy.js",
     "input-probe.js",
     "gc-probe.js",
-    "video-scaling.js"
+    "video-scaling.js",
+    "compatibility-profiles.js",
+    "virtual-keypad.js"
   ]
 }

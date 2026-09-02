@@ -4,11 +4,17 @@ import { GameRuntimeController } from "./runtime-controller.js";
 import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
 import { GC_PROBE_KIND, consumeGcProbe } from "./gc-probe.js";
 import {
+  encodeCoreProfile,
+  resolveCompatibilityProfile,
+  validCompatibilityProfileOverride
+} from "./compatibility-profiles.js";
+import {
   VIDEO_SCALING_MODES,
   computePresentationSize,
   scale2xPixels,
   validScalingMode
 } from "./video-scaling.js";
+import { VIRTUAL_KEY_ACTIONS, keyDescriptor } from "./virtual-keypad.js";
 
 export const J2ME_ADAPTER_KIND = "J2ME_MINIJVM_WEB";
 export const J2ME_ADAPTER_ID = "j2me-minijvm-web";
@@ -19,11 +25,14 @@ const persistenceRoot = "/appdata/freej2meonminijvm.jar/rms/rms";
 const maximumJarBytes = 128 * 1024 * 1024;
 const capabilities = Object.freeze({
   checkpoint: true,
+  compatibilityProfiles: true,
   contentSources: Object.freeze([J2ME_CONTENT_SOURCE]),
   frameCounter: true,
   pause: true,
   screenshot: true,
   standardGamepad: true,
+  virtualKeyInput: true,
+  virtualKeyActions: VIRTUAL_KEY_ACTIONS,
   validationProbes: Object.freeze([INPUT_PROBE_KIND, GC_PROBE_KIND]),
   videoScalingModes: VIDEO_SCALING_MODES,
   volume: false
@@ -74,6 +83,7 @@ export function validateRuntimeConfig(config) {
     !validDigest(config.contentDigest) || adapter?.adapterKind !== J2ME_ADAPTER_KIND ||
     adapter.adapterId !== J2ME_ADAPTER_ID || !validUrl(adapter.runtimeBaseUrl) ||
     !validStorage(adapter.storage) || !validViewport(adapter.viewport) ||
+    !validCompatibilityProfileOverride(adapter.compatibilityProfile) ||
     adapter.scalingMode !== undefined && !validScalingMode(adapter.scalingMode) ||
     source?.kind !== J2ME_CONTENT_SOURCE || !boundedText(source.name, 500) ||
     !validUrl(source.url, true) || !Number.isSafeInteger(source.sizeBytes) ||
@@ -101,6 +111,10 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     ? null
     : decodeCheckpoint(options.restorePayload, config.contentDigest);
   const jarBytes = await fetchJar(config.source, frameWindow, reportProgress);
+  const profile = resolveCompatibilityProfile(config.source, {
+    ...config.adapter.compatibilityProfile,
+    viewport: config.adapter.viewport
+  });
   const initialScalingMode = config.adapter.scalingMode ?? "SHARP_FIT";
   const surface = createSurface(document, frameWindow, config.adapter.viewport, initialScalingMode);
   target.replaceChildren(surface.root);
@@ -118,6 +132,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   let exitReported = false;
   const hostBridgeReady = deferred();
   const pressedGamepadKeys = new Set();
+  const pressedVirtualKeys = new Set();
   let inputProbe = null;
   let gcProbe = null;
 
@@ -154,6 +169,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     preRun: [() => prepareFileSystem(
       moduleOptions,
       jarBytes,
+      profile,
       config.adapter.storage,
       restored,
       reportProgress,
@@ -197,7 +213,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       if (exited) return;
       if (!paused) {
         if (viewMode === "LCD") drawLcd(surface, viewport);
-        updateGamepad(frameWindow, surface.source, pressedGamepadKeys);
+        updateGamepad(frameWindow, surface.source, pressedGamepadKeys, profile);
         frameCount += 1;
         if (frameCount % 30 === 0) resumeRuntimeAudio(frameWindow);
       }
@@ -219,7 +235,8 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     if (exited) return;
     exited = true;
     if (mirrorFrame) frameWindow.cancelAnimationFrame(mirrorFrame);
-    releaseKeys(frameWindow, surface.source, pressedGamepadKeys);
+    releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
+    releaseKeys(frameWindow, surface.source, pressedVirtualKeys, profile);
     audioActivation.remove();
     pointerHandlers.remove();
     surface.resizeObserver?.disconnect();
@@ -266,7 +283,8 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     pause: async () => {
       if (exited || paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
       paused = true;
-      releaseKeys(frameWindow, surface.source, pressedGamepadKeys);
+      releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
+      releaseKeys(frameWindow, surface.source, pressedVirtualKeys, profile);
       module.pauseMainLoop?.();
       pauseAudio(frameWindow);
     },
@@ -284,6 +302,16 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       scalingMode = mode;
       resizeDisplay(surface, viewport, scalingMode);
       surface.source.focus({ preventScroll: true });
+    },
+    setInput: (action, pressed) => {
+      if (!VIRTUAL_KEY_ACTIONS.includes(action) || typeof pressed !== "boolean") {
+        throw new Error("J2ME_INPUT_INVALID");
+      }
+      const alreadyPressed = pressedVirtualKeys.has(action);
+      if (pressed === alreadyPressed) return;
+      dispatchAction(frameWindow, surface.source, action, pressed, profile);
+      if (pressed) pressedVirtualKeys.add(action);
+      else pressedVirtualKeys.delete(action);
     },
     setViewMode: (mode) => {
       viewMode = mode;
@@ -349,12 +377,14 @@ async function fetchJar(source, frameWindow, reportProgress) {
   return bytes;
 }
 
-function prepareFileSystem(moduleOptions, jarBytes, storage, restored, reportProgress, diagnostic, reportFailure) {
+function prepareFileSystem(moduleOptions, jarBytes, profile, storage, restored, reportProgress, diagnostic, reportFailure) {
   const fs = moduleOptions.FS;
   if (!fs) throw new Error("J2ME_RUNTIME_FILESYSTEM_UNAVAILABLE");
   if (!fs.analyzePath(persistenceRoot).exists) fs.mkdirTree(persistenceRoot);
   const finish = () => {
     fs.writeFile("/game.jar", jarBytes);
+    fs.writeFile("/j2me-web-profile.properties", new TextEncoder().encode(encodeCoreProfile(profile)));
+    diagnostic(`compatibility profile ${profile.id} (${profile.viewport.width}x${profile.viewport.height}, ${profile.phone})`);
     diagnostic(`game mounted at /game.jar (${jarBytes.byteLength} bytes)`);
   };
   const applyRestore = () => {
@@ -520,17 +550,7 @@ function installPointerForwarding(surface, frameWindow, activate) {
   return { remove: () => { for (const type of types) surface.display.removeEventListener(type, forward); } };
 }
 
-const gamepadKeys = new Map([
-  ["ArrowUp", { code: "ArrowUp", key: "ArrowUp", keyCode: 38 }],
-  ["ArrowDown", { code: "ArrowDown", key: "ArrowDown", keyCode: 40 }],
-  ["ArrowLeft", { code: "ArrowLeft", key: "ArrowLeft", keyCode: 37 }],
-  ["ArrowRight", { code: "ArrowRight", key: "ArrowRight", keyCode: 39 }],
-  ["Enter", { code: "Enter", key: "Enter", keyCode: 13 }],
-  ["KeyQ", { code: "KeyQ", key: "q", keyCode: 81 }],
-  ["KeyE", { code: "KeyE", key: "e", keyCode: 69 }]
-]);
-
-function updateGamepad(frameWindow, canvas, pressed) {
+function updateGamepad(frameWindow, canvas, pressed, profile = null) {
   if (typeof frameWindow.navigator.getGamepads !== "function") return;
   const pad = Array.from(frameWindow.navigator.getGamepads()).find((value) => value?.connected && value.mapping === "standard");
   const desired = new Set();
@@ -538,35 +558,35 @@ function updateGamepad(frameWindow, canvas, pressed) {
     const button = (index) => Number(pad.buttons[index]?.value ?? 0) >= 0.5;
     const axisX = Number(pad.axes[0] ?? 0);
     const axisY = Number(pad.axes[1] ?? 0);
-    if (button(12) || axisY <= -0.55) desired.add("ArrowUp");
-    if (button(13) || axisY >= 0.55) desired.add("ArrowDown");
-    if (button(14) || axisX <= -0.55) desired.add("ArrowLeft");
-    if (button(15) || axisX >= 0.55) desired.add("ArrowRight");
-    if (button(0)) desired.add("Enter");
-    if (button(1) || button(8)) desired.add("KeyE");
-    if (button(2) || button(9)) desired.add("KeyQ");
+    if (button(12) || axisY <= -0.55) desired.add("UP");
+    if (button(13) || axisY >= 0.55) desired.add("DOWN");
+    if (button(14) || axisX <= -0.55) desired.add("LEFT");
+    if (button(15) || axisX >= 0.55) desired.add("RIGHT");
+    if (button(0)) desired.add("FIRE");
+    if (button(1) || button(8)) desired.add("SOFT_RIGHT");
+    if (button(2) || button(9)) desired.add("SOFT_LEFT");
   }
   for (const code of pressed) {
     if (!desired.has(code)) {
-      dispatchKey(frameWindow, canvas, code, false);
+      dispatchAction(frameWindow, canvas, code, false, profile);
       pressed.delete(code);
     }
   }
   for (const code of desired) {
     if (!pressed.has(code)) {
-      dispatchKey(frameWindow, canvas, code, true);
+      dispatchAction(frameWindow, canvas, code, true, profile);
       pressed.add(code);
     }
   }
 }
 
-function releaseKeys(frameWindow, canvas, pressed) {
-  for (const code of pressed) dispatchKey(frameWindow, canvas, code, false);
+function releaseKeys(frameWindow, canvas, pressed, profile = null) {
+  for (const action of pressed) dispatchAction(frameWindow, canvas, action, false, profile);
   pressed.clear();
 }
 
-function dispatchKey(frameWindow, canvas, code, down) {
-  const key = gamepadKeys.get(code);
+function dispatchAction(frameWindow, canvas, action, down, profile) {
+  const key = keyDescriptor(action, profile);
   if (!key) return;
   const event = new frameWindow.KeyboardEvent(down ? "keydown" : "keyup", {
     bubbles: true, cancelable: true, code: key.code, key: key.key

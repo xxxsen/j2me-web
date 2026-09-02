@@ -212,6 +212,43 @@ button:disabled { cursor: wait; opacity: 0.55; }
 .screen-placeholder[hidden] { display: none; }
 .screen-placeholder p { margin: 18px 0 0; font-size: 13px; }
 
+.j2me-virtual-keypad {
+  position: absolute;
+  z-index: 4;
+  inset: auto 16px 16px;
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(120px, 1fr) minmax(150px, 220px);
+  align-items: end;
+  gap: 14px;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.j2me-virtual-keypad[hidden] { display: none; }
+.j2me-virtual-keypad > div { pointer-events: auto; }
+.j2me-virtual-keypad button {
+  min-height: 42px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(185, 198, 230, 0.42);
+  border-radius: 11px;
+  color: #f2f5ff;
+  background: rgba(17, 22, 32, 0.76);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+.j2me-virtual-keypad button[data-pressed] { background: rgba(111, 140, 255, 0.9); transform: scale(0.96); }
+.j2me-keypad-direction, .j2me-keypad-number { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.j2me-keypad-direction [data-j2me-action="UP"] { grid-column: 2; }
+.j2me-keypad-direction [data-j2me-action="LEFT"] { grid-column: 1; grid-row: 2; }
+.j2me-keypad-direction [data-j2me-action="FIRE"] { grid-column: 2; grid-row: 2; }
+.j2me-keypad-direction [data-j2me-action="RIGHT"] { grid-column: 3; grid-row: 2; }
+.j2me-keypad-direction [data-j2me-action="DOWN"] { grid-column: 2; grid-row: 3; }
+.j2me-keypad-soft { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-self: start; }
+.j2me-keypad-soft button { min-height: 36px; font-size: 12px; }
+
 .phone-icon {
   position: relative;
   display: block;
@@ -243,4 +280,19 @@ button:disabled { cursor: wait; opacity: 0.55; }
   .screen-surface { inset: 12px; }
   .stage-toolbar { top: 8px; right: 8px; }
   .stage-action { padding: 0 9px; }
+  .stage-toolbar { left: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .j2me-virtual-keypad {
+    inset: auto 8px 10px;
+    grid-template-columns: minmax(130px, 1fr) 100px minmax(130px, 1fr);
+    gap: 8px;
+  }
+  .j2me-virtual-keypad button { min-height: 40px; }
+}
+
+@media (max-width: 520px) {
+  .stage { min-height: 600px; }
+  .j2me-virtual-keypad { grid-template-columns: 1fr 1fr; }
+  .j2me-keypad-soft { grid-column: 1 / -1; grid-row: 1; }
+  .j2me-keypad-direction { grid-column: 1; grid-row: 2; }
+  .j2me-keypad-number { grid-column: 2; grid-row: 2; }
 }

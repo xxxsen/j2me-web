@@ -48,7 +48,13 @@ const runtime = createRuntime({
     runtimeBaseUrl: runtimeAssetBaseUrl,
     storage: "HOST",
     viewport: { width: 240, height: 320 },
-    scalingMode: "SHARP_FIT"
+    scalingMode: "SHARP_FIT",
+    compatibilityProfile: {
+      phone: "Nokia",
+      input: { softKeySwap: false },
+      audio: { enabled: true, gain: 1, transcodeFallback: true },
+      graphics3d: { backend: "AUTO", halfResolution: false }
+    }
   }
 }, {
   frameWindow: window,
@@ -60,14 +66,14 @@ runtime.subscribe(handleRuntimeEvent);
 await runtime.mount(container);
 ```
 
-公共对象提供 `pause()`、`resume()`、`checkpoint()`、`screenshot()`、`exit()`、`getScalingMode()`、`setScalingMode()`、`getValidationProbe()`、能力/状态查询和事件订阅。`HOST` 模式由 Retrom 保存 checkpoint，`BROWSER` 模式只用于 Demo 的 IDBFS 持久化。JAR 的精确长度、ZIP 签名与 SHA-256 会在启动前验证。完整配置、事件和发布资产见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md)。
+公共对象提供 `pause()`、`resume()`、`checkpoint()`、`screenshot()`、`exit()`、`setInput()`、`getScalingMode()`、`setScalingMode()`、`getValidationProbe()`、能力/状态查询和事件订阅。`resolveCompatibilityProfile()` 按内容 SHA-256 解析内置档案，宿主也可显式覆盖分辨率、机型、按键、音频和 3D 策略；不根据文件名猜测游戏。`HOST` 模式由 Retrom 保存 checkpoint，`BROWSER` 模式只用于 Demo 的 IDBFS 持久化。JAR 的精确长度、ZIP 签名与 SHA-256 会在启动前验证。完整配置、事件和发布资产见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md)。
 
 ## 使用说明
 
 - 默认只显示并等比放大游戏 LCD；“显示模拟按键”可切回 miniJVM 的完整模拟器窗口。
 - 画面区域默认是 240×320。《仙剑奇侠传》会自动裁取其实际使用的 128×144 区域，也可以手动选择其他尺寸。
 - `SHARP_FIT`（默认）保持宽高比并用最近邻锐利铺满；`INTEGER_NEAREST` 只用整数倍像素，最清晰但可能留边；`SCALE2X` 先用像素邻域算法生成 2× 帧，再铺满显示区。
-- 键盘支持方向键、WASD、Enter 和数字键，Q / E 对应左右软键；放大画面上的指针事件会映射回模拟器 LCD。
+- 键盘支持方向键、WASD、Enter 和数字键，Q / E 对应左右软键；放大画面上的指针事件会映射回模拟器 LCD。Demo 的“触屏按键”提供方向、确认、软键、数字、`*`、`#`，支持多指与长按重复，并只通过公共 `setInput()` 接口发送输入。
 - 游戏启动后默认恢复 Web Audio，并在运行初期、键盘或指针输入时自动重试，不要求用户再手动开启音乐。浏览器的全局自动播放策略仍可能要求一次页面交互。
 - Demo 的 RMS 写入 `/appdata/freej2meonminijvm.jar/rms/rms` 并通过 IDBFS 持久化；宿主的 `HOST` 模式不读取该浏览器数据，只接受显式 `restorePayload`。
 - 当前一次页面生命周期只运行一个 JAR；切换游戏请重新加载页面。
@@ -113,8 +119,8 @@ Cross-Origin-Resource-Policy: same-origin
 | 层 | 仓库 | 固定提交 | 上游基线 |
 | --- | --- | --- | --- |
 | JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
-| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `51aeb8b6af1784517cc17e924479956bf506eca9` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
-| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `4ee680cc5ad72f8fc842c9651420dc0318d8fa95` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
+| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
+| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `ef35d77eef84d305d1d75769d0f7fdf1e6bc6509` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
 
 此外固定使用 TinySoundFont `853a0a171759f1ddba0de1442133a75912bbeffa`、TimGM6mb SoundFont（SHA-256 `c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854`）、Emscripten 3.1.46 和 Eclipse Temurin 8。
 

@@ -16,6 +16,8 @@
 | GC 契约探针 | 已完成 | `J2ME_GC_V1` 返回最近完成周期的堆前后、回收量、协调锁等待和真实 STW，供长时准入测试 |
 | 暂停 / 继续 | 已接入 | 暂停 Emscripten 主循环、输入和 Web Audio；miniJVM 其他 pthread 的完全挂起仍需 VM 级控制 |
 | 标准手柄 | 已接入 | D-pad/左摇杆、A、B、X、Start/Select 映射为 J2ME 方向、确认和软键；退出时释放 |
+| 游戏兼容档案 | 已接入 | `resolveCompatibilityProfile()` 按内容摘要返回版本化档案，可覆盖分辨率、机型、旋转、输入、音频和 3D 策略 |
+| 虚拟手机键 | 已接入 | 公共 `setInput(action, pressed)` 覆盖方向、确认、软键、数字、`*`、`#`；暂停和退出释放全部按键 |
 | 核心主动退出 | 已接入 | launcher 监控 `MobilePlatform.appTerminated`，以稳定标记转换为一次 `EXIT_REQUESTED` |
 | 有界 checkpoint | 部分完成 | 完整 RMS 文件树绑定游戏摘要，格式稳定且上限 2 MiB；可在新实例启动前恢复 |
 | 新实例直接恢复执行点 | **未完成** | RMS 不是 miniJVM/线程/堆快照；部分游戏仍会进入自身标题或读档菜单 |
@@ -42,7 +44,8 @@ const config = {
     runtimeBaseUrl: "https://assets.example/j2me/v0.2.2/",
     storage: "HOST",
     viewport: { width: 240, height: 320 },
-    scalingMode: "SHARP_FIT"
+    scalingMode: "SHARP_FIT",
+    compatibilityProfile: resolveCompatibilityProfile(source)
   }
 };
 
@@ -69,7 +72,7 @@ await runtime.mount(container);
 - `FATAL_ERROR`
 - `EXIT_REQUESTED`
 
-运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、`getScalingMode`、`setScalingMode`、`getValidationProbe`、状态/能力/Canvas/帧计数查询和 `subscribe`。`J2ME_INPUT_V1` 与 `J2ME_GC_V1` 仅用于集成/准入测试。Demo 专用的 `unlockAudio`、`setViewMode` 与 `setViewport` 是附加便利方法，Retrom adapter 不需要依赖。
+运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、`setInput`、`getScalingMode`、`setScalingMode`、`getValidationProbe`、状态/能力/Canvas/帧计数查询和 `subscribe`。`setInput` 只接受 manifest 声明的逻辑动作，Retrom 的屏幕按键和其他输入 UI 不需要构造 DOM 键盘事件。`J2ME_INPUT_V1` 与 `J2ME_GC_V1` 仅用于集成/准入测试。Demo 专用的 `unlockAudio`、`setViewMode` 与 `setViewport` 是附加便利方法，Retrom adapter 不需要依赖。
 
 ## Checkpoint 格式
 
@@ -91,6 +94,7 @@ await runtime.mount(container);
 - `runtime.js`, `runtime.wasm`, `runtime.data`, `runtime.worker.js`
 - `runtime-api.js`, `runtime-controller.js`, `checkpoint-codec.js`
 - `audio-policy.js`, `input-probe.js`, `gc-probe.js`, `video-scaling.js`
+- `compatibility-profiles.js`, `virtual-keypad.js`
 - `runtime-manifest.json`, `THIRD_PARTY_NOTICES.md`
 - `j2me-runtime-release.json`
 

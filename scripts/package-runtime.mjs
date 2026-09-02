@@ -30,6 +30,8 @@ const sources = [
   "web/input-probe.js",
   "web/gc-probe.js",
   "web/video-scaling.js",
+  "web/compatibility-profiles.js",
+  "web/virtual-keypad.js",
   "runtime-manifest.json",
   "THIRD_PARTY_NOTICES.md"
 ];
@@ -59,8 +61,8 @@ const metadata = {
   repository: "https://github.com/xxxsen/j2me-web",
   schemaVersion: 1,
   sourceCommits: {
-    freej2meOnMinijvm: "51aeb8b6af1784517cc17e924479956bf506eca9",
-    freej2mePlus: "4ee680cc5ad72f8fc842c9651420dc0318d8fa95",
+    freej2meOnMinijvm: "1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e",
+    freej2mePlus: "ef35d77eef84d305d1d75769d0f7fdf1e6bc6509",
     miniJVM: "a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0"
   },
   tag

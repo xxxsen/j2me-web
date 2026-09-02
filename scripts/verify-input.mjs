@@ -25,7 +25,7 @@ try {
   await waitForServer(baseUrl);
   browser = await puppeteer.launch({
     executablePath: chromePath,
-    headless: false,
+    headless: true,
     args: ["--disable-dev-shm-usage", "--enable-unsafe-swiftshader", "--no-sandbox"]
   });
   const page = await browser.newPage();
@@ -43,10 +43,39 @@ try {
     assert.equal(probe.keyCode, mobileKey, `${browserKey} must reach the MIDlet as ${mobileKey}`);
     sequence = probe.sequence;
   }
-  console.log(`Input contract verified for ${expected.length} browser keys.`);
+  await page.click("#keypad-button");
+  const touchExpected = [
+    ["UP", -1], ["DOWN", -2], ["LEFT", -3], ["RIGHT", -4], ["FIRE", -5],
+    ["SOFT_LEFT", -6], ["SOFT_RIGHT", -7], ["STAR", 42], ["POUND", 35],
+    ...Array.from({ length: 10 }, (_, digit) => [`DIGIT_${digit}`, 48 + digit])
+  ];
+  for (const [action, mobileKey] of touchExpected) {
+    const probe = await dispatchTouchAndRead(page, action, sequence).catch((error) => {
+      throw new Error(`${action} did not reach the FreeJ2ME input queue`, { cause: error });
+    });
+    assert.equal(probe.keyCode, mobileKey, `${action} must reach the MIDlet as ${mobileKey}`);
+    sequence = probe.sequence;
+  }
+  console.log(`Input contract verified for ${expected.length} browser keys and ${touchExpected.length} touch keys.`);
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
+}
+
+async function dispatchTouchAndRead(page, action, previousSequence) {
+  await page.evaluate((name) => {
+    const button = document.querySelector(`[data-j2me-action="${name}"]`);
+    button.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, cancelable: true, pointerId: 41, pointerType: "touch", isPrimary: true
+    }));
+    button.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true, cancelable: true, pointerId: 41, pointerType: "touch", isPrimary: true
+    }));
+  }, action);
+  await page.waitForFunction((previous) =>
+    (window.__j2meDemoRuntime.getValidationProbe("J2ME_INPUT_V1")?.sequence ?? 0) > previous,
+  { timeout: 30000 }, previousSequence);
+  return page.evaluate(() => window.__j2meDemoRuntime.getValidationProbe("J2ME_INPUT_V1"));
 }
 
 async function dispatchAndRead(page, browserKey, previousSequence) {

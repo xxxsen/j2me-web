@@ -1,4 +1,6 @@
 import { createRuntime, sha256Hex } from "./runtime-api.js";
+import { resolveCompatibilityProfile } from "./compatibility-profiles.js";
+import { createVirtualKeypad } from "./virtual-keypad.js";
 
 const fixtureSelect = document.querySelector("#fixture-select");
 const viewportSelect = document.querySelector("#viewport-select");
@@ -16,6 +18,7 @@ const pauseButton = document.querySelector("#pause-button");
 const checkpointButton = document.querySelector("#checkpoint-button");
 const viewButton = document.querySelector("#view-button");
 const fullscreenButton = document.querySelector("#fullscreen-button");
+const keypadButton = document.querySelector("#keypad-button");
 const badge = document.querySelector("#runtime-badge");
 const consoleOutput = document.querySelector("#console-output");
 
@@ -23,6 +26,7 @@ let runtime = null;
 let fixtureCatalog = [];
 let objectUrl = null;
 let viewMode = "LCD";
+let keypad = null;
 const logLines = ["页面已就绪。"];
 
 function appendLog(message, isError = false) {
@@ -38,13 +42,11 @@ function updateBadge(message, state = "") {
   badge.className = `badge ${state}`.trim();
 }
 
-function automaticViewport(gameName) {
-  return /仙剑奇侠传/iu.test(gameName) ? { width: 128, height: 144 } : { width: 240, height: 320 };
-}
-
-function selectedViewport(gameName = "") {
+function selectedViewport(source = null) {
   const match = /^(\d+)x(\d+)$/u.exec(viewportSelect.value);
-  return match ? { width: Number(match[1]), height: Number(match[2]) } : automaticViewport(gameName);
+  return match
+    ? { width: Number(match[1]), height: Number(match[2]) }
+    : resolveCompatibilityProfile(source).viewport;
 }
 
 async function loadFixtures() {
@@ -134,6 +136,7 @@ async function startGame() {
   updateBadge("正在准备游戏…", "running");
   try {
     const source = await readSource();
+    const compatibilityProfile = resolveCompatibilityProfile(source);
     const [restoreFile] = checkpointFile.files;
     const restorePayload = restoreFile ? new Uint8Array(await restoreFile.arrayBuffer()) : null;
     runtime = createRuntime({
@@ -146,7 +149,8 @@ async function startGame() {
         runtimeBaseUrl: new URL("/runtime/", location.href).href,
         storage: "BROWSER",
         scalingMode: scalingSelect.value,
-        viewport: selectedViewport(source.name)
+        viewport: selectedViewport(source),
+        compatibilityProfile
       }
     }, {
       frameWindow: window,
@@ -160,6 +164,11 @@ async function startGame() {
     subscribeRuntime(runtime);
     appendLog(`准备启动：${source.name}`);
     await runtime.mount(screenSurface);
+    keypad = createVirtualKeypad(runtime, stage, compatibilityProfile, {
+      visible: matchMedia("(pointer: coarse)").matches
+    });
+    keypadButton.disabled = false;
+    keypadButton.textContent = keypad.isVisible() ? "隐藏触屏按键" : "触屏按键";
     audioButton.disabled = false;
     pauseButton.disabled = false;
     viewButton.disabled = false;
@@ -192,8 +201,8 @@ checkpointFile.addEventListener("change", () => {
 
 viewportSelect.addEventListener("change", () => {
   if (!runtime) return;
-  const fixtureName = fixtureSelect.selectedOptions[0]?.textContent || jarFile.files[0]?.name || "";
-  const viewport = selectedViewport(fixtureName);
+  const fixture = fixtureCatalog.find((entry) => entry.url === fixtureSelect.value);
+  const viewport = selectedViewport(fixture ?? null);
   runtime.setViewport(viewport);
   appendLog(`游戏画面区域：${viewport.width} × ${viewport.height}`);
 });
@@ -251,11 +260,20 @@ fullscreenButton.addEventListener("click", async () => {
   } catch (error) { appendLog(`无法进入全屏：${error.message}`, true); }
 });
 
+keypadButton.addEventListener("click", () => {
+  if (!keypad) return;
+  keypad.setVisible(!keypad.isVisible());
+  keypadButton.textContent = keypad.isVisible() ? "隐藏触屏按键" : "触屏按键";
+});
+
 document.addEventListener("fullscreenchange", () => {
   fullscreenButton.textContent = document.fullscreenElement ? "退出全屏" : "全屏";
 });
 
-window.addEventListener("pagehide", () => { void runtime?.exit(); }, { once: true });
+window.addEventListener("pagehide", () => {
+  keypad?.remove();
+  void runtime?.exit();
+}, { once: true });
 window.addEventListener("error", (event) => {
   if (!runtime) return;
   updateBadge("运行时错误", "error");
