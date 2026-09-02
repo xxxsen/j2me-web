@@ -44,11 +44,16 @@ npm run check
 npm run build:runtime
 npm run test:input
 npm run test:audio
+npm run test:media
+npm run test:3d
+npm run test:performance
 npm run test:gc
+npm run test:soak
 npm run release:build
 ```
 
 4. 浏览器烟测至少覆盖一个 240×320 游戏和《仙剑奇侠传》的 128×144 裁取；检查键盘、标准手柄、主菜单音频、暂停/恢复、截图、checkpoint 导出、不同页面实例恢复和恢复后继续输入。《仙剑奇侠传》音频改动必须运行 `npm run test:audio`，且测试不得确认“新的历程”或进入地图后才判断成功。
+   发布浸泡只以 Google Chrome 为门禁，默认运行 `npm run test:soak` 的 15 分钟配置；缩短时长只能用于开发期定位，不能作为发布证据。
 5. `runtime-manifest.json`、README、兼容性报告、第三方声明和固定依赖提交必须与代码同步。
 6. 发布前确认四个仓库工作区干净且均位于 `main`，并确认固定提交和 tag 已在远端可达。
 

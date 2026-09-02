@@ -31,7 +31,7 @@ vX.Y.Z
 ## 发布检查
 
 1. 确认四个仓库工作区干净且位于 `main`。
-2. 运行 `npm run check`、`npm run test:input` 和 `npm run test:gc`。
+2. 运行 `npm run check`、`npm run test:input`、`npm run test:audio`、`npm run test:media`、`npm run test:3d`、`npm run test:performance`、`npm run test:gc` 和默认 15 分钟的 `npm run test:soak`（仅 Google Chrome）。
 3. 仅使用远端默认地址运行 `npm run build:runtime`，验证固定提交均可拉取。
 4. 运行 `RELEASE_TAG=vX.Y.Z npm run release:build`，核对 metadata 的 commit、tag、资产大小与摘要。
 5. 至少烟测《仙剑奇侠传》《魔塔》《钻石狂潮》，检查画面、按键、MIDI、Web Audio、暂停/继续和 checkpoint 跨页面恢复。

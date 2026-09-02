@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的浏览器 J2ME 运行时。它把 miniJVM 编译为 WebAssembly，以 FreeJ2ME Plus 提供 MIDP/厂商 API 实现，并通过一个轻量页面加载 fixture 或本地 JAR。
 
-当前版本为 `0.2.2`。本版修复 miniJVM 类初始化失败后污染调用者操作数栈的问题，并让 MIDI 在 `Player` 创建时立即异步准备；《仙剑奇侠传》现在无需确认“新的历程”或进入地图，即可在主菜单开始背景音乐。既有 Retrom 公共 API、RMS checkpoint、画面缩放、端到端输入和 pthread GC 契约保持不变。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
+当前版本为 `0.3.0`。本版补齐按游戏 SHA-256 的兼容档案、移动端多点触控与按键重复、AMR/AAC/MP3 浏览器回退、M3G/Mascot Capsule WebGL2、miniJVM 启动优化和 Chrome 15 分钟浸泡门禁。应用 JAR 现在优先于内嵌依赖解析，GC 会在类元数据加载窗口结束后再收集，避免把正常的 JAR 解压误判为协调锁死。既有 Retrom 公共 API 与 RMS checkpoint ABI 保持不变。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -118,9 +118,9 @@ Cross-Origin-Resource-Policy: same-origin
 
 | 层 | 仓库 | 固定提交 | 上游基线 |
 | --- | --- | --- | --- |
-| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
-| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
-| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `ef35d77eef84d305d1d75769d0f7fdf1e6bc6509` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
+| JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `1533f6f9d858cdd67f3262811f2410b1a42a7255` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
+| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `b72d9606fe11e57559ef56ace528c6104537ea34` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
+| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `df5aed202aed01ea744d9e5f918a905634508169` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
 
 此外固定使用 TinySoundFont `853a0a171759f1ddba0de1442133a75912bbeffa`、TimGM6mb SoundFont（SHA-256 `c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854`）、Emscripten 3.1.46 和 Eclipse Temurin 8。
 
@@ -139,7 +139,7 @@ npm run build:runtime
 
 本项目参考并吸收了 [zb3/freej2me-web](https://github.com/zb3/freej2me-web) 的浏览器端经验，包括持久化文件系统、按游戏加载、响应式画面、输入转发以及浏览器原生音频思路，但没有复制其 CheerpJ 运行链路。
 
-当前项目的优势是 JVM、模拟器核心和 WebAssembly 构建都能自行维护、固定版本并离线部署。当前已补齐按 SHA-256 的游戏配置、移动端多点触控/重复键，以及 AMR/AAC/MP3 的音频专用 FFmpeg Wasm 回退；`freej2me-web` 仍在 WebGL 2 的 M3G/Mascot 3D、数据导入导出和视频媒体方面更成熟。这些差距被保留在兼容性报告中，不把“能够启动”表述成“完整兼容”。
+当前项目的优势是 JVM、模拟器核心和 WebAssembly 构建都能自行维护、固定版本并离线部署。当前已补齐按 SHA-256 的游戏配置、移动端多点触控/重复键、AMR/AAC/MP3 的音频专用 FFmpeg Wasm 回退，以及有真实游戏帧证据的 M3G/Mascot WebGL2 路径；`freej2me-web` 仍在按游戏数据导入/导出、视频媒体和更大游戏矩阵方面更成熟。这些差距被保留在兼容性报告中，不把“能够启动”表述成“完整兼容”。
 
 ## 开发检查
 
@@ -150,16 +150,25 @@ npm run build:runtime
 npm run test:input
 npm run test:audio
 npm run test:media
+npm run test:3d
+npm run test:performance
 npm run test:gc
+npm run test:soak
 npm run release:build
 ```
 
-`test:input` 会启动真实 Wasm/MIDlet 和无头 Chromium，依次发送方向键、WASD、确认、左右软键及 0–9，并断言 FreeJ2ME 在交给 MIDlet 前观察到的最终键值，共覆盖 21 个浏览器按键；它不是只测 DOM `KeyboardEvent` 的映射表。
+`test:input` 会启动真实 Wasm/MIDlet 和无头 Chrome，依次覆盖 21 个浏览器按键、19 个触屏手机键、7 个标准手柄按钮，并从 MIDlet 的 `GameCanvas.getKeyStates()` 断言长按和释放状态；它不是只测 DOM/GLFW 映射表。
 
 `test:audio` 只向《仙剑奇侠传》的“按任意键继续”发送一次确认键，随后停留在“新的历程 / 旧的回忆”主菜单；测试会等待 MIDI 解码和 Web Audio 进入运行状态，并断言没有媒体初始化异常。它不会通过进入地图来误判主菜单音乐已经修复。
 
 `test:media` 在无头 Chrome 中直接运行发布版音频 Worker/Wasm，验证 AMR-NB、AAC-LC 与真实游戏 MP3 均转换为非静音 PCM WAV，并可由 Web Audio 解码。转码器只在 Chrome 原生解码失败时懒加载。
 
-`test:gc` 会在真实 Wasm/MIDlet 中等待至少 3 个 GC 周期，断言有对象被回收、GC 后 Java 堆不持续发散、每次真实 STW 不超过默认 2 秒、画面帧继续推进，并在 GC 后再次验证输入。可用 `J2ME_GC_TEST_CYCLES=30 npm run test:gc` 做更长 soak，或用 `J2ME_GC_TEST_FIXTURE=仙剑奇侠传` 切换样本。
+`test:3d` 默认推进《都市摩天楼》到真实 M3G 场景，要求 `J2ME_3D_V1` 报告包含几何项的 WebGL2 帧；也可通过 `J2ME_3D_TEST_API=MASCOT` 和外部合法测试 JAR 验证 Mascot Capsule。软件回退或只有后端创建事件都不算通过。
 
-miniJVM GC 现已在 pthread 浏览器构建中启用。6 轮《魔塔》回归的 GC 后 Java 堆稳定在约 34–36 MiB，累计回收约 100 MiB；`0.2.2` 发布候选中《魔塔》和《仙剑奇侠传》观察到的最大真实 STW 分别为 87 ms 和 97 ms。Wasm 线性内存达到过的高水位不会向浏览器归还，但已释放块会被后续分配复用；正式服务仍应持续做小时级场景切换、真实手柄以及 Chrome 之外的多浏览器回归。
+`test:performance` 在隔离的 Chrome context 中重复测量 READY、前 5 帧和端到端输入延迟。构建使用 `-O3 -msimd128`，miniJVM 会复用 JAR reader，避免每次类查找重新打开压缩包。
+
+`test:gc` 会在真实 Wasm/MIDlet 中等待至少 3 个 GC 周期，断言有对象被回收、GC 后 Java 堆不持续发散、每次真实 STW 不超过默认 2 秒、画面帧继续推进，并在 GC 后再次验证输入。类加载窗口会明确延后周期，不会强行释放仍保护元数据的递归锁。可用 `J2ME_GC_TEST_CYCLES=30 npm run test:gc` 扩大周期数，或用 `J2ME_GC_TEST_FIXTURE=仙剑奇侠传` 切换样本。
+
+`test:soak` 只使用 Chrome，默认持续 15 分钟运行《魔塔》，每 15 秒验证状态、帧和 MIDlet 输入，每分钟验证 PNG 截图，并覆盖暂停/恢复、至少 3 个 GC 周期、STW 上限、Java 堆平台、Chrome JS 堆增长和致命诊断。可通过 `J2ME_SOAK_TEST_DURATION_MS` 调整非发布环境的时长；发布证据必须保留默认 900000 ms。
+
+miniJVM GC 现已在 pthread 浏览器构建中启用。Wasm 线性内存达到过的高水位不会向浏览器归还，但已释放块会被后续分配复用；正式服务仍应继续扩大真实游戏、场景切换和实物手柄矩阵。

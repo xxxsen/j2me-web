@@ -4,7 +4,7 @@
 
 ## 准入能力对照
 
-| Retrom 能力 | j2me-web 0.2.2 | 说明 |
+| Retrom 能力 | j2me-web 0.3.0 | 说明 |
 | --- | --- | --- |
 | 模块化实例 | 已完成 | Emscripten 使用 `MODULARIZE + EXPORT_ES6`，不再占用 `window.Module` |
 | 统一生命周期 | 已完成 | 状态、串行操作、取消、幂等退出和公共事件由 `GameRuntimeController` 管理 |
@@ -14,6 +14,8 @@
 | 低分辨率缩放 | 已完成 | 能力清单公开 `INTEGER_NEAREST`、`SHARP_FIT`、`SCALE2X`，配置和运行中切换均走公共 API |
 | 输入契约探针 | 已完成 | `J2ME_INPUT_V1` 返回 FreeJ2ME 即将交给 MIDlet 的最终键值，供准入自动化验证；不是产品遥测接口 |
 | GC 契约探针 | 已完成 | `J2ME_GC_V1` 返回最近完成周期的堆前后、回收量、协调锁等待和真实 STW，供长时准入测试 |
+| 按键状态探针 | 已完成 | `J2ME_KEY_STATE_V1` 从 MIDlet `GameCanvas` 入口验证长按位与释放，不把 DOM 映射等同于核心收到的状态 |
+| 3D 契约探针 | 已完成 | `J2ME_3D_V1` 区分 M3G/Mascot、WebGL2/软件后端及创建/实际帧/回退；准入必须看到含几何项的实际帧 |
 | 暂停 / 继续 | 已接入 | 暂停 Emscripten 主循环、输入和 Web Audio；miniJVM 其他 pthread 的完全挂起仍需 VM 级控制 |
 | 标准手柄 | 已接入 | D-pad/左摇杆、A、B、X、Start/Select 映射为 J2ME 方向、确认和软键；退出时释放 |
 | 游戏兼容档案 | 已接入 | `resolveCompatibilityProfile()` 按内容摘要返回版本化档案，可覆盖分辨率、机型、旋转、输入、音频和 3D 策略 |
@@ -41,7 +43,7 @@ const config = {
   adapter: {
     adapterKind: "J2ME_MINIJVM_WEB",
     adapterId: "j2me-minijvm-web",
-    runtimeBaseUrl: "https://assets.example/j2me/v0.2.2/",
+    runtimeBaseUrl: "https://assets.example/j2me/v0.3.0/",
     storage: "HOST",
     viewport: { width: 240, height: 320 },
     scalingMode: "SHARP_FIT",
@@ -72,7 +74,7 @@ await runtime.mount(container);
 - `FATAL_ERROR`
 - `EXIT_REQUESTED`
 
-运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、`setInput`、`getScalingMode`、`setScalingMode`、`getValidationProbe`、状态/能力/Canvas/帧计数查询和 `subscribe`。`setInput` 只接受 manifest 声明的逻辑动作，Retrom 的屏幕按键和其他输入 UI 不需要构造 DOM 键盘事件。`J2ME_INPUT_V1` 与 `J2ME_GC_V1` 仅用于集成/准入测试。Demo 专用的 `unlockAudio`、`setViewMode` 与 `setViewport` 是附加便利方法，Retrom adapter 不需要依赖。
+运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、`setInput`、`getScalingMode`、`setScalingMode`、`getValidationProbe`、状态/能力/Canvas/帧计数查询和 `subscribe`。`setInput` 只接受 manifest 声明的逻辑动作，Retrom 的屏幕按键和其他输入 UI 不需要构造 DOM 键盘事件。`J2ME_INPUT_V1`、`J2ME_KEY_STATE_V1`、`J2ME_GC_V1`、`J2ME_MEDIA_V1` 与 `J2ME_3D_V1` 仅用于集成/准入测试。Demo 专用的 `unlockAudio`、`setViewMode` 与 `setViewport` 是附加便利方法，Retrom adapter 不需要依赖。
 
 ## Checkpoint 格式
 
@@ -93,7 +95,7 @@ await runtime.mount(container);
 
 - `runtime.js`, `runtime.wasm`, `runtime.data`, `runtime.worker.js`
 - `runtime-api.js`, `runtime-controller.js`, `checkpoint-codec.js`
-- `audio-policy.js`, `media-transcoder.js`, `input-probe.js`, `gc-probe.js`, `video-scaling.js`
+- `audio-policy.js`, `media-transcoder.js`, `input-probe.js`, `key-state-probe.js`, `gc-probe.js`, `graphics-probe.js`, `video-scaling.js`
 - `compatibility-profiles.js`, `virtual-keypad.js`
 - `audio-transcoder.wasm`, `audio-transcoder.glue.js`, `audio-transcoder.worker.js`
 - `runtime-manifest.json`, `THIRD_PARTY_NOTICES.md`
