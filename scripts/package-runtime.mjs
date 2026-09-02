@@ -23,6 +23,9 @@ const sources = [
   "public/runtime/runtime.wasm",
   "public/runtime/runtime.data",
   "public/runtime/runtime.worker.js",
+  "public/runtime/audio-transcoder.wasm",
+  "public/runtime/audio-transcoder.glue.js",
+  "public/runtime/audio-transcoder.worker.js",
   "web/runtime-api.js",
   "web/runtime-controller.js",
   "web/checkpoint-codec.js",
@@ -32,6 +35,7 @@ const sources = [
   "web/video-scaling.js",
   "web/compatibility-profiles.js",
   "web/virtual-keypad.js",
+  "web/media-transcoder.js",
   "runtime-manifest.json",
   "THIRD_PARTY_NOTICES.md"
 ];
@@ -63,7 +67,8 @@ const metadata = {
   sourceCommits: {
     freej2meOnMinijvm: "1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e",
     freej2mePlus: "ef35d77eef84d305d1d75769d0f7fdf1e6bc6509",
-    miniJVM: "a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0"
+    ffmpeg: "db69d06eeeab4f46da15030a80d539efb4503ca8",
+    miniJVM: "bb23558a0caae6ceb809301c9af299590c967d3a"
   },
   tag
 };

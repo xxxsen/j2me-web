@@ -1,5 +1,6 @@
 import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckpoint } from "./checkpoint-codec.js";
 import { installAudioActivation, resumeRuntimeAudio, suspendRuntimeAudio } from "./audio-policy.js";
+import { createAudioTranscoder } from "./media-transcoder.js";
 import { GameRuntimeController } from "./runtime-controller.js";
 import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
 import { GC_PROBE_KIND, consumeGcProbe } from "./gc-probe.js";
@@ -23,6 +24,7 @@ export const J2ME_CONTENT_SOURCE = "J2ME_JAR_V1";
 
 const persistenceRoot = "/appdata/freej2meonminijvm.jar/rms/rms";
 const maximumJarBytes = 128 * 1024 * 1024;
+const MEDIA_PROBE_KIND = "J2ME_MEDIA_V1";
 const capabilities = Object.freeze({
   checkpoint: true,
   compatibilityProfiles: true,
@@ -33,9 +35,9 @@ const capabilities = Object.freeze({
   standardGamepad: true,
   virtualKeyInput: true,
   virtualKeyActions: VIRTUAL_KEY_ACTIONS,
-  validationProbes: Object.freeze([INPUT_PROBE_KIND, GC_PROBE_KIND]),
+  validationProbes: Object.freeze([INPUT_PROBE_KIND, GC_PROBE_KIND, MEDIA_PROBE_KIND]),
   videoScalingModes: VIDEO_SCALING_MODES,
-  volume: false
+  volume: true
 });
 
 export const runtimeAdapter = Object.freeze({
@@ -119,6 +121,16 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   const surface = createSurface(document, frameWindow, config.adapter.viewport, initialScalingMode);
   target.replaceChildren(surface.root);
   const runtimeBaseUrl = new URL(normalizedBase(config.adapter.runtimeBaseUrl), document.baseURI);
+  const previousMediaTranscode = frameWindow.__j2meMediaTranscode;
+  const previousAudioProfile = frameWindow.__j2meAudioProfile;
+  const mediaTranscoder = profile.audio.transcodeFallback
+    ? createAudioTranscoder(runtimeBaseUrl, frameWindow)
+    : null;
+  const mediaTranscode = mediaTranscoder
+    ? (bytes) => mediaTranscoder.transcode(bytes)
+    : null;
+  frameWindow.__j2meMediaTranscode = mediaTranscode;
+  frameWindow.__j2meAudioProfile = { gain: profile.audio.gain, masterGain: 1 };
   const moduleOptions = {};
   const initialized = deferred();
   let module = null;
@@ -238,6 +250,15 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
     releaseKeys(frameWindow, surface.source, pressedVirtualKeys, profile);
     audioActivation.remove();
+    mediaTranscoder?.close();
+    if (frameWindow.__j2meMediaTranscode === mediaTranscode) {
+      if (previousMediaTranscode === undefined) delete frameWindow.__j2meMediaTranscode;
+      else frameWindow.__j2meMediaTranscode = previousMediaTranscode;
+    }
+    if (frameWindow.__j2meAudioProfile?.gain === profile.audio.gain) {
+      if (previousAudioProfile === undefined) delete frameWindow.__j2meAudioProfile;
+      else frameWindow.__j2meAudioProfile = previousAudioProfile;
+    }
     pointerHandlers.remove();
     surface.resizeObserver?.disconnect();
     try { module?.pauseMainLoop?.(); } catch { /* The frame may already be tearing down. */ }
@@ -278,6 +299,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     getValidationProbe: (kind) => {
       if (kind === INPUT_PROBE_KIND) return inputProbe;
       if (kind === GC_PROBE_KIND) return gcProbe;
+      if (kind === MEDIA_PROBE_KIND) return mediaProbe(frameWindow, mediaTranscoder);
       return null;
     },
     pause: async () => {
@@ -296,7 +318,15 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       surface.source.focus({ preventScroll: true });
     },
     screenshot: () => canvasBlob(surface.display),
-    setVolume: null,
+    setVolume: (value) => {
+      frameWindow.__j2meAudioProfile.masterGain = value;
+      const audio = frameWindow.__j2meWebAudio;
+      if (!audio?.items) return;
+      for (const item of audio.items.values()) {
+        item.masterGain = value;
+        if (item.gain) item.gain.gain.value = item.volume * item.profileGain * value;
+      }
+    },
     setScalingMode: (mode) => {
       if (!validScalingMode(mode)) throw new Error("J2ME_SCALING_MODE_INVALID");
       scalingMode = mode;
@@ -644,6 +674,23 @@ function withTimeout(frameWindow, promise, milliseconds, code) {
 
 function pauseAudio(frameWindow) {
   suspendRuntimeAudio(frameWindow);
+}
+
+function mediaProbe(frameWindow, mediaTranscoder) {
+  const backendStats = frameWindow.__j2meWebAudio?.stats ?? {};
+  const count = (value) => Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  return {
+    kind: MEDIA_PROBE_KIND,
+    schemaVersion: 1,
+    backend: {
+      creates: count(backendStats.creates),
+      decodeFailures: count(backendStats.decodeFailures),
+      transcodeBegins: count(backendStats.transcodeBegins),
+      transcodeFailures: count(backendStats.transcodeFailures),
+      transcodeSuccesses: count(backendStats.transcodeSuccesses)
+    },
+    transcoder: mediaTranscoder?.getStats() ?? { failures: 0, requests: 0, successes: 0 }
+  };
 }
 
 function canvasBlob(canvas) {

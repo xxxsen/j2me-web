@@ -9,8 +9,9 @@
     "test": "node --test",
     "test:input": "xvfb-run -a node scripts/verify-input.mjs",
     "test:audio": "node scripts/verify-audio.mjs",
+    "test:media": "node scripts/verify-media.mjs",
     "test:gc": "xvfb-run -a node scripts/verify-gc.mjs",
-    "check": "node --check server.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && node --check web/audio-policy.js && node --check web/input-probe.js && node --check web/gc-probe.js && node --check web/video-scaling.js && node --check web/compatibility-profiles.js && node --check web/virtual-keypad.js && npm test",
+    "check": "node --check server.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && node --check web/audio-policy.js && node --check web/input-probe.js && node --check web/gc-probe.js && node --check web/video-scaling.js && node --check web/compatibility-profiles.js && node --check web/virtual-keypad.js && node --check web/media-transcoder.js && node --check web/audio-transcoder.worker.js && npm test",
     "release:build": "node scripts/package-runtime.mjs"
   },
   "engines": {

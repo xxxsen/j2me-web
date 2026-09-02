@@ -34,7 +34,8 @@
 | 主菜单音频时序 | 已自动化 | 《仙剑奇侠传》只接收一次离开启动提示的确认键；不选择新游戏、不进入地图，断言 MIDI 已解码且 Web Audio 正在运行 |
 | PCM/WAV | 已接入 | 浏览器 `decodeAudioData` 路径可用；样本覆盖少于 MIDI |
 | M3G / Mascot 3D | 部分 | FreeJ2ME Plus 有 API 实现，但 miniJVM WebGL 后端尚未完成全量回归 |
-| AMR、AAC、MP3、视频 | 未完成 | 尚无与 freej2me-web FFmpeg Wasm 等价的媒体桥 |
+| AMR、AAC、MP3 | 已自动化 | Chrome 原生解码失败时懒加载 FFmpeg 7.1.1 音频专用 Wasm，在独立 Worker 转为 PCM WAV；无网络、无 GPL/x264 |
+| 视频媒体 | 未完成 | 当前转码器刻意不包含视频解码/渲染，避免给游戏主循环和发布体积引入不受控开销 |
 | 厂商扩展 | 部分 | FreeJ2ME Plus 提供较广 API 面，实际游戏路径仍需逐项验证 |
 | 网络、短信、蓝牙 | 未验证 | 浏览器权限与传输桥尚未系统测试 |
 | 长时运行 | 初步通过 | 《魔塔》6 轮 GC 后 Java 堆约 34–36 MiB，未持续增长；仍需小时级、多场景和多浏览器 soak |
@@ -57,6 +58,8 @@ miniJVM fork `a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0` 保留了 Emscripten GC 
 
 `npm run test:audio` 使用无头 Chromium 启动真实 Wasm 和《仙剑奇侠传》，在启动提示停留 25 秒后只按住一次 Enter 750 ms，并由 `J2ME_INPUT_V1` 确认 MIDlet 收到 `-5`。测试随后不再发送任何输入，因此不会确认“新的历程”或进入地图；它等待 32.94 秒菜单 MIDI 完成 SoundFont 渲染，断言 Web Audio item 已缓冲、请求播放并处于 running，同时画面帧继续推进且日志中没有 `Sound : ...Exception`。修复前同一路径稳定在 `Player.realize()` 前抛出 `NullPointerException`，没有创建 Web Audio item。
 
+`npm run test:media` 在无头 Chrome 中逐一把 AMR-NB、AAC-LC/ADTS 和真实游戏内 MP3 交给发布版 Worker/Wasm，要求三者均输出有效 RIFF PCM、可被 Web Audio 解码、时长大于 100 ms 且非静音。`J2ME_MEDIA_V1` 同时公开原生解码失败、回退开始/成功/失败与 Worker 请求统计，便于宿主和浸泡测试确认没有静默丢音。
+
 ## 与 freej2me-web 对比
 
 对比基线为 `zb3/freej2me-web@c19416e75cbc15f9a27f7e967ee81cb108761e30`。
@@ -68,7 +71,7 @@ miniJVM fork `a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0` 保留了 Emscripten GC 
 | 2D 画面 | NanoVG/WebGL 模拟器画面后再裁取 LCD | JavaScript Canvas 2D 直接帧缓冲桥，浏览器集成更直接 |
 | 3D | API 存在，Web 回归不完整 | M3G 与 Mascot Capsule WebGL2 路径更成熟 |
 | MIDI | TinySoundFont + SoundFont + 直连 Web Audio | 精简 FluidSynth Wasm + AudioWorklet |
-| 其他媒体 | WAV/PCM 为主 | FFmpeg Wasm，可处理 AMR 等格式并桥接 video |
+| 其他媒体 | AMR-NB/WB、AAC、MP3 由 LGPL 音频专用 FFmpeg Wasm 回退，WAV/PCM 走 Chrome 原生路径；尚无视频 | FFmpeg Wasm，可处理 AMR 等格式并桥接 video |
 | 存档 | IDBFS 自动持久化 | IndexedDB，并有按游戏数据导入/导出流程 |
 | 游戏配置 | SHA-256 绑定档案覆盖屏幕、手机、旋转、输入、音频和 3D，并允许宿主覆盖 | 屏幕尺寸、手机型号、兼容开关、旋转、全屏等按游戏配置 |
 | 移动端输入 | 响应式触控键盘、多点触控、长按重复和公共虚拟键 API | 响应式触控键盘、多点触控、按键重复 |

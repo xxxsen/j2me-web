@@ -5,13 +5,15 @@ PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CACHE_ROOT="$PROJECT_ROOT/.cache/upstream"
 OUTPUT_ROOT="$PROJECT_ROOT/public/runtime"
 MINIJVM_REPOSITORY="${MINIJVM_REPOSITORY:-https://github.com/xxxsen/miniJVM.git}"
-MINIJVM_COMMIT="${MINIJVM_COMMIT:-a2dd48c1cea0b4bcd4fccc2cf843be2686a6d2a0}"
+MINIJVM_COMMIT="${MINIJVM_COMMIT:-bb23558a0caae6ceb809301c9af299590c967d3a}"
 FREEJ2ME_REPOSITORY="${FREEJ2ME_REPOSITORY:-https://github.com/xxxsen/freej2meOnMinijvm.git}"
 FREEJ2ME_COMMIT="${FREEJ2ME_COMMIT:-1deb29732aa5a64fa61a1dc7fffd7fa9afd3a08e}"
 FREEJ2ME_PLUS_REPOSITORY="${FREEJ2ME_PLUS_REPOSITORY:-https://github.com/xxxsen/freej2me-plus.git}"
 FREEJ2ME_PLUS_COMMIT="${FREEJ2ME_PLUS_COMMIT:-ef35d77eef84d305d1d75769d0f7fdf1e6bc6509}"
 TINYSOUNDFONT_REPOSITORY="https://github.com/schellingb/TinySoundFont.git"
 TINYSOUNDFONT_COMMIT="853a0a171759f1ddba0de1442133a75912bbeffa"
+FFMPEG_REPOSITORY="https://github.com/FFmpeg/FFmpeg.git"
+FFMPEG_COMMIT="db69d06eeeab4f46da15030a80d539efb4503ca8"
 SOUNDFONT_URL="https://raw.githubusercontent.com/musescore/musescore-old/0c1f25dc3cdd2f9332118fa221a344eb8f6ee702/mscore/share/sound/TimGM6mb.sf2"
 SOUNDFONT_SHA256="c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854"
 JDK_IMAGE="eclipse-temurin:8-jdk-jammy"
@@ -47,6 +49,7 @@ ensure_cache "$MINIJVM_REPOSITORY" "$CACHE_ROOT/miniJVM" "$MINIJVM_COMMIT"
 ensure_cache "$FREEJ2ME_REPOSITORY" "$CACHE_ROOT/freej2meOnMinijvm" "$FREEJ2ME_COMMIT"
 ensure_cache "$FREEJ2ME_PLUS_REPOSITORY" "$CACHE_ROOT/freej2me-plus" "$FREEJ2ME_PLUS_COMMIT"
 ensure_cache "$TINYSOUNDFONT_REPOSITORY" "$CACHE_ROOT/TinySoundFont" "$TINYSOUNDFONT_COMMIT"
+ensure_cache "$FFMPEG_REPOSITORY" "$CACHE_ROOT/FFmpeg" "$FFMPEG_COMMIT"
 
 SOUNDFONT_CACHE="$CACHE_ROOT/TimGM6mb.sf2"
 if [[ ! -f "$SOUNDFONT_CACHE" ]] || ! echo "$SOUNDFONT_SHA256  $SOUNDFONT_CACHE" | sha256sum --check --status; then
@@ -90,7 +93,10 @@ git -C "$BUILD_ROOT/freej2meOnMinijvm" checkout --quiet --detach "$FREEJ2ME_COMM
 git clone --quiet --no-checkout --shared "$CACHE_ROOT/freej2me-plus" "$BUILD_ROOT/freej2me-plus"
 git -C "$BUILD_ROOT/freej2me-plus" checkout --quiet --detach "$FREEJ2ME_PLUS_COMMIT"
 
-echo "[1/3] Building miniJVM and FreeJ2ME Java libraries"
+git clone --quiet --no-checkout --shared "$CACHE_ROOT/FFmpeg" "$BUILD_ROOT/FFmpeg"
+git -C "$BUILD_ROOT/FFmpeg" checkout --quiet --detach "$FFMPEG_COMMIT"
+
+echo "[1/4] Building miniJVM and FreeJ2ME Java libraries"
 docker run --rm \
   -v "$BUILD_ROOT:/build" \
   -v "$PROJECT_ROOT:/project:ro" \
@@ -176,7 +182,7 @@ javac -source 8 -target 8 -encoding UTF-8 \
 jar cf "$DIST/lib/webj2me.jar" -C /build/classes/launcher .
 '
 
-echo "[2/3] Compiling miniJVM to WebAssembly"
+echo "[2/4] Compiling miniJVM to WebAssembly"
 mkdir -p "$BUILD_ROOT/wasm"
 docker run --rm \
   -v "$BUILD_ROOT:/build" \
@@ -207,8 +213,50 @@ emcc -O3 -o /build/wasm/runtime.js \
   -s ENVIRONMENT=web,worker
 '
 
-echo "[3/3] Publishing runtime artifacts"
+echo "[3/4] Building the FFmpeg audio-only transcoder"
+mkdir -p "$BUILD_ROOT/audio-transcoder"
+docker run --rm \
+  -v "$BUILD_ROOT:/build" \
+  -v "$PROJECT_ROOT:/project:ro" \
+  -w /build/FFmpeg \
+  "$EMSCRIPTEN_IMAGE" \
+  bash -lc '
+set -euo pipefail
+emconfigure ./configure \
+  --prefix=/build/ffmpeg-install \
+  --cc=emcc --cxx=em++ --ar=emar --ranlib=emranlib --nm=emnm \
+  --arch=wasm32 --target-os=none --enable-cross-compile \
+  --disable-all --disable-autodetect --disable-programs --disable-doc \
+  --disable-debug --disable-network --disable-pthreads --disable-asm \
+  --enable-avcodec --enable-avformat --enable-avutil --enable-swresample \
+  --enable-demuxer=aac,amr,mp3,mov,wav \
+  --enable-parser=aac,aac_latm,amr,mpegaudio \
+  --enable-decoder=aac,aac_fixed,aac_latm,amrnb,amrwb,mp3,mp3float \
+  --enable-small --extra-cflags=-O3
+emmake make -j"$(nproc)"
+emmake make install
+
+emcc -O3 -flto --no-entry \
+  -I/build/ffmpeg-install/include \
+  /project/third_party/audio-transcoder/transcode.c \
+  -Wl,--start-group \
+  /build/ffmpeg-install/lib/libavformat.a \
+  /build/ffmpeg-install/lib/libavcodec.a \
+  /build/ffmpeg-install/lib/libswresample.a \
+  /build/ffmpeg-install/lib/libavutil.a \
+  -Wl,--end-group \
+  -s MODULARIZE=1 -s EXPORT_NAME=createFfmpegAudioTranscoder \
+  -s ENVIRONMENT=worker -s FILESYSTEM=0 \
+  -s INITIAL_MEMORY=33554432 -s ALLOW_MEMORY_GROWTH=1 \
+  -s EXPORTED_FUNCTIONS="[\"_malloc\",\"_free\",\"_transcode\",\"_ob_get_data\",\"_ob_get_size\",\"_ob_free\"]" \
+  -o /build/audio-transcoder/audio-transcoder.glue.js
+'
+
+echo "[4/4] Publishing runtime artifacts"
 find "$OUTPUT_ROOT" -mindepth 1 -maxdepth 1 -type f ! -name .gitkeep -delete
 cp "$BUILD_ROOT"/wasm/runtime.* "$OUTPUT_ROOT/"
+cp "$BUILD_ROOT/audio-transcoder/audio-transcoder.glue.wasm" "$OUTPUT_ROOT/audio-transcoder.wasm"
+cp "$BUILD_ROOT/audio-transcoder/audio-transcoder.glue.js" "$OUTPUT_ROOT/"
+cp "$PROJECT_ROOT/web/audio-transcoder.worker.js" "$OUTPUT_ROOT/"
 
 echo "Runtime built in $OUTPUT_ROOT"

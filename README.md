@@ -139,7 +139,7 @@ npm run build:runtime
 
 本项目参考并吸收了 [zb3/freej2me-web](https://github.com/zb3/freej2me-web) 的浏览器端经验，包括持久化文件系统、按游戏加载、响应式画面、输入转发以及浏览器原生音频思路，但没有复制其 CheerpJ 运行链路。
 
-当前项目的优势是 JVM、模拟器核心和 WebAssembly 构建都能自行维护、固定版本并离线部署。`freej2me-web` 目前在 WebGL 2 的 M3G/Mascot 3D、按游戏配置与数据导入导出、移动端触控键盘、按键重复以及 FFmpeg/AMR/视频媒体方面更成熟。这些差距被保留在兼容性报告中，不把“能够启动”表述成“完整兼容”。
+当前项目的优势是 JVM、模拟器核心和 WebAssembly 构建都能自行维护、固定版本并离线部署。当前已补齐按 SHA-256 的游戏配置、移动端多点触控/重复键，以及 AMR/AAC/MP3 的音频专用 FFmpeg Wasm 回退；`freej2me-web` 仍在 WebGL 2 的 M3G/Mascot 3D、数据导入导出和视频媒体方面更成熟。这些差距被保留在兼容性报告中，不把“能够启动”表述成“完整兼容”。
 
 ## 开发检查
 
@@ -149,6 +149,7 @@ npm run check
 npm run build:runtime
 npm run test:input
 npm run test:audio
+npm run test:media
 npm run test:gc
 npm run release:build
 ```
@@ -156,6 +157,8 @@ npm run release:build
 `test:input` 会启动真实 Wasm/MIDlet 和无头 Chromium，依次发送方向键、WASD、确认、左右软键及 0–9，并断言 FreeJ2ME 在交给 MIDlet 前观察到的最终键值，共覆盖 21 个浏览器按键；它不是只测 DOM `KeyboardEvent` 的映射表。
 
 `test:audio` 只向《仙剑奇侠传》的“按任意键继续”发送一次确认键，随后停留在“新的历程 / 旧的回忆”主菜单；测试会等待 MIDI 解码和 Web Audio 进入运行状态，并断言没有媒体初始化异常。它不会通过进入地图来误判主菜单音乐已经修复。
+
+`test:media` 在无头 Chrome 中直接运行发布版音频 Worker/Wasm，验证 AMR-NB、AAC-LC 与真实游戏 MP3 均转换为非静音 PCM WAV，并可由 Web Audio 解码。转码器只在 Chrome 原生解码失败时懒加载。
 
 `test:gc` 会在真实 Wasm/MIDlet 中等待至少 3 个 GC 周期，断言有对象被回收、GC 后 Java 堆不持续发散、每次真实 STW 不超过默认 2 秒、画面帧继续推进，并在 GC 后再次验证输入。可用 `J2ME_GC_TEST_CYCLES=30 npm run test:gc` 做更长 soak，或用 `J2ME_GC_TEST_FIXTURE=仙剑奇侠传` 切换样本。
 

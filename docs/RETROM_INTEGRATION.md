@@ -93,8 +93,9 @@ await runtime.mount(container);
 
 - `runtime.js`, `runtime.wasm`, `runtime.data`, `runtime.worker.js`
 - `runtime-api.js`, `runtime-controller.js`, `checkpoint-codec.js`
-- `audio-policy.js`, `input-probe.js`, `gc-probe.js`, `video-scaling.js`
+- `audio-policy.js`, `media-transcoder.js`, `input-probe.js`, `gc-probe.js`, `video-scaling.js`
 - `compatibility-profiles.js`, `virtual-keypad.js`
+- `audio-transcoder.wasm`, `audio-transcoder.glue.js`, `audio-transcoder.worker.js`
 - `runtime-manifest.json`, `THIRD_PARTY_NOTICES.md`
 - `j2me-runtime-release.json`
 

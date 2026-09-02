@@ -15,3 +15,12 @@ test("the browser compatibility profile reaches the miniJVM frontend", async () 
   assert.match(runtimeApi, /\/j2me-web-profile\.properties/u);
   assert.match(build, /MiniJvmFrontendProfileTest/u);
 });
+
+test("the release builds a pinned FFmpeg audio-only transcoder", async () => {
+  const build = await readFile(new URL("../scripts/build-runtime.sh", import.meta.url), "utf8");
+  assert.match(build, /FFMPEG_COMMIT="db69d06eeeab4f46da15030a80d539efb4503ca8"/u);
+  assert.match(build, /--disable-network/u);
+  assert.match(build, /--enable-decoder=.*amrnb.*amrwb.*mp3/u);
+  assert.match(build, /audio-transcoder\.wasm/u);
+  assert.doesNotMatch(build, /--enable-libx264|--enable-gpl/u);
+});

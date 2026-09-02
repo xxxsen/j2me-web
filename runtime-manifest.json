@@ -20,9 +20,10 @@
       "virtualKeyActions": ["UP", "DOWN", "LEFT", "RIGHT", "FIRE", "SOFT_LEFT", "SOFT_RIGHT", "DIGIT_0", "DIGIT_1", "DIGIT_2", "DIGIT_3", "DIGIT_4", "DIGIT_5", "DIGIT_6", "DIGIT_7", "DIGIT_8", "DIGIT_9", "STAR", "POUND"],
       "compatibilityProfiles": true,
       "frameCounter": true,
-      "validationProbes": ["J2ME_INPUT_V1", "J2ME_GC_V1"],
+      "audioCodecs": ["MIDI", "WAV", "PCM", "AMR-NB", "AMR-WB", "AAC", "MP3"],
+      "validationProbes": ["J2ME_INPUT_V1", "J2ME_GC_V1", "J2ME_MEDIA_V1"],
       "videoScalingModes": ["INTEGER_NEAREST", "SHARP_FIT", "SCALE2X"],
-      "volume": false
+      "volume": true
     }
   },
   "core": {
@@ -42,6 +43,9 @@
     "runtime.wasm",
     "runtime.data",
     "runtime.worker.js",
+    "audio-transcoder.wasm",
+    "audio-transcoder.glue.js",
+    "audio-transcoder.worker.js",
     "runtime-api.js",
     "runtime-controller.js",
     "checkpoint-codec.js",
@@ -50,6 +54,7 @@
     "gc-probe.js",
     "video-scaling.js",
     "compatibility-profiles.js",
-    "virtual-keypad.js"
+    "virtual-keypad.js",
+    "media-transcoder.js"
   ]
 }
