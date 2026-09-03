@@ -8,6 +8,7 @@ import {
 } from "../web/compatibility-profiles.js";
 
 const xianDigest = "187550494eae6b8923edbf96524f4d0e84782467286fd2fd666c10f23935a07c";
+const perfectXianDigest = "75aaf194cbd01715d4eaa99720e6876ff2355e494d3ed5f09c33d85cae81b100";
 
 test("known games resolve by content digest instead of mutable file names", () => {
   const renamed = resolveCompatibilityProfile({ name: "renamed.jar", sha256: xianDigest });
@@ -17,6 +18,15 @@ test("known games resolve by content digest instead of mutable file names", () =
   assert.deepEqual(renamed.viewport, { width: 128, height: 144 });
   assert.equal(unknown.id, DEFAULT_COMPATIBILITY_PROFILE.id);
   assert.deepEqual(unknown.viewport, { width: 240, height: 320 });
+});
+
+test("the MIDP 1.0 perfect edition uses its native Nokia viewport", () => {
+  const profile = resolveCompatibilityProfile({ name: "renamed.jar", sha256: perfectXianDigest });
+
+  assert.equal(profile.id, "xianjian-perfect-176x208");
+  assert.equal(profile.phone, "Nokia");
+  assert.deepEqual(profile.viewport, { width: 176, height: 208 });
+  assert.equal(profile.launch.threadedStart, true);
 });
 
 test("a host can override bounded compatibility fields without mutating the catalog", () => {
@@ -52,6 +62,7 @@ test("the core profile is deterministic and contains emulator-facing settings", 
     "sound=on",
     "m3g.backend=auto",
     "m3g.halfResolution=off",
+    "midlet.launch=direct",
     ""
   ].join("\n"));
 });

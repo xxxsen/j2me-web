@@ -24,6 +24,9 @@ export const DEFAULT_COMPATIBILITY_PROFILE = deepFreeze({
   graphics3d: {
     backend: "AUTO",
     halfResolution: false
+  },
+  launch: {
+    threadedStart: false
   }
 });
 
@@ -31,6 +34,12 @@ const profileCatalog = new Map([
   ["187550494eae6b8923edbf96524f4d0e84782467286fd2fd666c10f23935a07c", {
     id: "xianjian-128x144",
     viewport: { width: 128, height: 144 }
+  }],
+  ["75aaf194cbd01715d4eaa99720e6876ff2355e494d3ed5f09c33d85cae81b100", {
+    id: "xianjian-perfect-176x208",
+    viewport: { width: 176, height: 208 },
+    phone: "Nokia",
+    launch: { threadedStart: true }
   }],
   ["eb44f9787ff9cb653e797bac47c8d312c2c0d2e28f88e9bd85e4f1e4adef5c68", {
     id: "tower-bloxx-m3g",
@@ -55,7 +64,7 @@ export function resolveCompatibilityProfile(source, override = {}) {
 export function validCompatibilityProfileOverride(value) {
   if (value === undefined) return true;
   if (!plainObject(value) || !onlyKeys(value, [
-    "schemaVersion", "id", "viewport", "frameRate", "phone", "rotation", "input", "audio", "graphics3d"
+    "schemaVersion", "id", "viewport", "frameRate", "phone", "rotation", "input", "audio", "graphics3d", "launch"
   ]) || value.schemaVersion !== undefined && value.schemaVersion !== 1) return false;
   try {
     resolveCompatibilityProfile(null, value);
@@ -77,6 +86,7 @@ export function encodeCoreProfile(profile) {
     `sound=${profile.audio.enabled ? "on" : "off"}`,
     `m3g.backend=${profile.graphics3d.backend.toLowerCase()}`,
     `m3g.halfResolution=${profile.graphics3d.halfResolution ? "on" : "off"}`,
+    `midlet.launch=${profile.launch.threadedStart ? "thread" : "direct"}`,
     ""
   ].join("\n");
 }
@@ -91,7 +101,8 @@ function mergeProfile(base, known, override) {
     rotation: override.rotation ?? known.rotation ?? base.rotation,
     input: { ...base.input, ...known.input, ...override.input },
     audio: { ...base.audio, ...known.audio, ...override.audio },
-    graphics3d: { ...base.graphics3d, ...known.graphics3d, ...override.graphics3d }
+    graphics3d: { ...base.graphics3d, ...known.graphics3d, ...override.graphics3d },
+    launch: { ...base.launch, ...known.launch, ...override.launch }
   };
 }
 
@@ -106,7 +117,9 @@ function validCompatibilityProfile(value) {
     typeof value.audio.enabled === "boolean" && Number.isFinite(value.audio.gain) &&
     value.audio.gain >= 0 && value.audio.gain <= 2 && typeof value.audio.transcodeFallback === "boolean" &&
     plainObject(value.graphics3d) && onlyKeys(value.graphics3d, ["backend", "halfResolution"]) &&
-    graphicsBackends.includes(value.graphics3d.backend) && typeof value.graphics3d.halfResolution === "boolean";
+    graphicsBackends.includes(value.graphics3d.backend) && typeof value.graphics3d.halfResolution === "boolean" &&
+    plainObject(value.launch) && onlyKeys(value.launch, ["threadedStart"]) &&
+    typeof value.launch.threadedStart === "boolean";
 }
 
 function onlyKeys(value, allowed) {

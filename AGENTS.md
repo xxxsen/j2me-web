@@ -47,6 +47,7 @@ npm run test:audio
 npm run test:media
 npm run test:3d
 npm run test:performance
+npm run test:xianjian-perfect
 npm run test:gc
 npm run test:soak
 npm run release:build

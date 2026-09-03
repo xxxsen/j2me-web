@@ -51,6 +51,15 @@ public final class WebLauncher {
                     ClassLoader loader = app.getClass().getClassLoader();
                     Class<?> platformClass = Class.forName("org.recompile.mobile.MobilePlatform", true, loader);
                     Field terminated = platformClass.getField("appTerminated");
+                    Field firstFrame = platformClass.getField("firstFramePresented");
+                    Field inputQueue = platformClass.getField("inputQueueReady");
+                    while (!firstFrame.getBoolean(null) || !inputQueue.getBoolean(null)) {
+                        if (terminated.getBoolean(null)) {
+                            System.out.println("[j2me-web] MIDLET_EXIT_REQUESTED");
+                            return;
+                        }
+                        Thread.sleep(10L);
+                    }
                     System.out.println("[j2me-web] HOST_BRIDGE_READY");
 
                     while (true) {

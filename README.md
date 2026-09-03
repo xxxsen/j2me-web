@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的浏览器 J2ME 运行时。它把 miniJVM 编译为 WebAssembly，以 FreeJ2ME Plus 提供 MIDP/厂商 API 实现，并通过一个轻量页面加载 fixture 或本地 JAR。
 
-当前版本为 `0.3.0`。本版补齐按游戏 SHA-256 的兼容档案、移动端多点触控与按键重复、AMR/AAC/MP3 浏览器回退、M3G/Mascot Capsule WebGL2、miniJVM 启动优化和 Chrome 15 分钟浸泡门禁。应用 JAR 现在优先于内嵌依赖解析，GC 会在类元数据加载窗口结束后再收集，避免把正常的 JAR 解压误判为协调锁死。既有 Retrom 公共 API 与 RMS checkpoint ABI 保持不变。原有 Demo 页面仍保留，并且只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
+当前版本为 `0.3.1`。本版修复《仙剑奇侠传完美版》的 MIDP 1.0 `startApp()` 长驻循环占住 Chrome/GLFW 主循环的问题：由 JAR SHA-256 兼容档案仅对该游戏启用独立 MIDlet 启动线程，普通游戏保留原启动时序。READY 同时等待首帧与 MIDP 事件队列，并新增 176×208 持续渲染、Enter `-5` 以及输入后帧推进的无头 Chrome 回归。既有 Retrom 公共 API 与 RMS checkpoint ABI 保持不变，Demo 页面仍只通过同一公共 API 启动游戏。详细能力与边界见 [Retrom 接入说明](docs/RETROM_INTEGRATION.md) 和 [兼容性报告](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -119,8 +119,8 @@ Cross-Origin-Resource-Policy: same-origin
 | 层 | 仓库 | 固定提交 | 上游基线 |
 | --- | --- | --- | --- |
 | JVM/Wasm | [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM) | `1533f6f9d858cdd67f3262811f2410b1a42a7255` | `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc` |
-| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `b72d9606fe11e57559ef56ace528c6104537ea34` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
-| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `df5aed202aed01ea744d9e5f918a905634508169` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
+| miniJVM 适配 | [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm) | `abc7aebca03b914df289e8e2f566c3a8b4173464` | `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456` |
+| 模拟器核心 | [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus) | `f416be17e069ec9658b868ce0a580992b9270097` | `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887` |
 
 此外固定使用 TinySoundFont `853a0a171759f1ddba0de1442133a75912bbeffa`、TimGM6mb SoundFont（SHA-256 `c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854`）、Emscripten 3.1.46 和 Eclipse Temurin 8。
 
@@ -152,6 +152,7 @@ npm run test:audio
 npm run test:media
 npm run test:3d
 npm run test:performance
+npm run test:xianjian-perfect
 npm run test:gc
 npm run test:soak
 npm run release:build
@@ -165,7 +166,9 @@ npm run release:build
 
 `test:3d` 默认推进《都市摩天楼》到真实 M3G 场景，要求 `J2ME_3D_V1` 报告包含几何项的 WebGL2 帧；也可通过 `J2ME_3D_TEST_API=MASCOT` 和外部合法测试 JAR 验证 Mascot Capsule。软件回退或只有后端创建事件都不算通过。
 
-`test:performance` 在隔离的 Chrome context 中重复测量 READY、前 5 帧和端到端输入延迟。构建使用 `-O3 -msimd128`，miniJVM 会复用 JAR reader，避免每次类查找重新打开压缩包。
+`test:performance` 在隔离的 Chrome context 中重复测量 READY、前 5 帧、首次真实输入可交互时间和后续端到端输入延迟。构建使用 `-O3 -msimd128`，miniJVM 会复用 JAR reader，避免每次类查找重新打开压缩包。
+
+`test:xianjian-perfect` 使用《仙剑奇侠传完美版》验证 176×208 原生画布、3 秒持续帧推进、Enter 到 MIDlet FIRE `-5` 的端到端映射，以及输入后页面仍可响应。
 
 `test:gc` 会在真实 Wasm/MIDlet 中等待至少 3 个 GC 周期，断言有对象被回收、GC 后 Java 堆不持续发散、每次真实 STW 不超过默认 2 秒、画面帧继续推进，并在 GC 后再次验证输入。类加载窗口会明确延后周期，不会强行释放仍保护元数据的递归锁。可用 `J2ME_GC_TEST_CYCLES=30 npm run test:gc` 扩大周期数，或用 `J2ME_GC_TEST_FIXTURE=仙剑奇侠传` 切换样本。
 

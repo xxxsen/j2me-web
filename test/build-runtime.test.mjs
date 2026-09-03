@@ -6,6 +6,8 @@ test("MIDlet startup cannot block the browser's GLFW event loop", async () => {
   const launcher = await readFile(new URL("../src/java/org/j2me/web/WebLauncher.java", import.meta.url), "utf8");
   assert.match(launcher, /Thread\s+appLoader\s*=\s*new Thread/u);
   assert.match(launcher, /appLoader\.start\(\);[\s\S]*Glfw\.executeMainLoop\(\);/u);
+  assert.match(launcher, /firstFramePresented[\s\S]*HOST_BRIDGE_READY/u);
+  assert.match(launcher, /inputQueueReady[\s\S]*HOST_BRIDGE_READY/u);
 });
 
 test("the browser compatibility profile reaches the miniJVM frontend", async () => {
