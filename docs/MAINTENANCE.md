@@ -35,7 +35,7 @@ vX.Y.Z
 3. 推送已修改 fork 的 `main` 和规范 tag；未修改的 fork 不创建新 tag。
 4. 使用远程默认地址完整构建主仓库，确认固定提交可达。
 5. 更新版本、`runtime-manifest.json`、兼容性、依赖与第三方声明。
-6. 运行 `RELEASE_TAG=vX.Y.Z npm run release:build`，核对 `j2me-runtime-release.json`。
-7. 推送主仓库 `main` 和版本 tag。`v*` tag 会创建包含不可变资产与 metadata 的 GitHub Release。
+6. 运行 `RELEASE_TAG=vX.Y.Z npm run release:build`，核对运行时 ZIP、`.sha256` 和 schema v2 `j2me-runtime-release.json`。
+7. 推送主仓库 `main` 和版本 tag。`v*` tag 只发布完整运行时 ZIP、校验和与 metadata；源码归档由 GitHub 根据 tag 自动提供。
 
 Release 失败时修复问题并发布新版本，不覆盖旧 tag 或旧资产。

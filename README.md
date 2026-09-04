@@ -2,7 +2,7 @@
 
 `j2me-web` 是一个不依赖 CheerpJ 的开源 J2ME 浏览器运行时。它将 miniJVM 编译为 WebAssembly，使用 FreeJ2ME Plus 实现 MIDP 及常见厂商 API，并提供可嵌入其他 Web 应用的公共 JavaScript API。
 
-当前版本为 `0.3.1`。
+当前版本为 `0.3.2`。
 
 ## 主要能力
 
@@ -31,10 +31,10 @@ npm run dev
 
 ## 嵌入使用
 
-`web/runtime-api.js` 是宿主程序的公共入口：
+源码入口是 `web/runtime-api.js`；Release 中对应的单文件 ESM 入口为 `j2me-runtime.js`：
 
 ```js
-import { createRuntime } from "./runtime-api.js";
+import { createRuntime } from "./j2me-runtime.js";
 
 const runtime = createRuntime({
   sessionId: "launch-1",
@@ -96,6 +96,10 @@ FREEJ2ME_REPOSITORY=/path/to/freej2meOnMinijvm \
 FREEJ2ME_PLUS_REPOSITORY=/path/to/freej2me-plus \
 npm run build:runtime
 ```
+
+## Release
+
+每个版本发布一个 `j2me-web-vX.Y.Z-runtime.zip` 完整运行时包，以及对应的 `.sha256` 和 `j2me-runtime-release.json`。压缩包内以版本化目录为根，包含单一公共 ESM bundle、Wasm、pthread worker、预加载数据、音频转码 worker、manifest、文档和第三方声明；内部实现模块不再作为独立 Release 附件分发。
 
 ## 文档
 

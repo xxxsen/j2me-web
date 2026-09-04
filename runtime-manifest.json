@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageName": "j2me-web",
-  "packageVersion": "0.3.1",
+  "packageVersion": "0.3.2",
   "publicApiVersion": 1,
   "admissionStatus": "CANDIDATE",
   "adapter": {
@@ -45,24 +45,12 @@
     "maximumCheckpointBytes": 2097152
   },
   "assets": [
+    "j2me-runtime.js",
     "runtime.js",
     "runtime.wasm",
     "runtime.data",
     "runtime.worker.js",
     "audio-transcoder.wasm",
-    "audio-transcoder.glue.js",
-    "audio-transcoder.worker.js",
-    "runtime-api.js",
-    "runtime-controller.js",
-    "checkpoint-codec.js",
-    "audio-policy.js",
-    "input-probe.js",
-    "key-state-probe.js",
-    "gc-probe.js",
-    "graphics-probe.js",
-    "video-scaling.js",
-    "compatibility-profiles.js",
-    "virtual-keypad.js",
-    "media-transcoder.js"
+    "audio-transcoder.worker.js"
   ]
 }

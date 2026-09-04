@@ -3,7 +3,7 @@
 ## 基本配置
 
 ```js
-import { createRuntime } from "./runtime-api.js";
+import { createRuntime } from "./j2me-runtime.js";
 
 const source = {
   kind: "J2ME_JAR_V1",
@@ -20,7 +20,7 @@ const runtime = createRuntime({
   adapter: {
     adapterKind: "J2ME_MINIJVM_WEB",
     adapterId: "j2me-minijvm-web",
-    runtimeBaseUrl: "https://assets.example/j2me/v0.3.1/",
+    runtimeBaseUrl: "https://assets.example/j2me/v0.3.2/",
     storage: "HOST",
     viewport: { width: 240, height: 320 },
     scalingMode: "SHARP_FIT"
@@ -64,6 +64,6 @@ Checkpoint 的边界和限制见 [CHECKPOINTS.md](CHECKPOINTS.md)。
 
 ## 发布资产
 
-`vX.Y.Z` Release 包含 Wasm 运行时、worker、公共 JavaScript 模块、音频转码器、`runtime-manifest.json`、`THIRD_PARTY_NOTICES.md` 以及 `j2me-runtime-release.json`。后者记录版本提交、固定依赖和每个资产的大小与 SHA-256。
+`vX.Y.Z` Release 提供 `j2me-web-vX.Y.Z-runtime.zip`、对应 SHA-256 文件和 `j2me-runtime-release.json`。解压目录中的 `j2me-runtime.js` 是唯一公共 ESM 入口；Wasm、pthread worker、预加载数据和音频转码器作为运行时旁置资产保留。metadata schema v2 记录压缩包与解压后运行资产的大小和 SHA-256。
 
 宿主必须提供 COOP/COEP 以启用 cross-origin isolation，并保证运行时资产可以被 worker 和 Wasm 从同一隔离上下文加载。

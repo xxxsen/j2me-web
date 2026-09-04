@@ -1,6 +1,6 @@
 {
   "name": "j2me-web",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,13 +15,16 @@
     "test:xianjian-perfect": "xvfb-run -a node scripts/verify-xianjian-perfect.mjs",
     "test:gc": "xvfb-run -a node scripts/verify-gc.mjs",
     "test:soak": "xvfb-run -a node scripts/verify-soak.mjs",
-    "check": "node --check server.mjs && node --check scripts/verify-performance.mjs && node --check scripts/verify-soak.mjs && node --check scripts/verify-xianjian-perfect.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && node --check web/audio-policy.js && node --check web/input-probe.js && node --check web/gc-probe.js && node --check web/graphics-probe.js && node --check web/video-scaling.js && node --check web/compatibility-profiles.js && node --check web/virtual-keypad.js && node --check web/media-transcoder.js && node --check web/audio-transcoder.worker.js && npm test",
+    "test:release": "node scripts/verify-release-package.mjs",
+    "check": "node --check server.mjs && node --check scripts/package-runtime.mjs && node --check scripts/release-package-lib.mjs && node --check scripts/verify-release-package.mjs && node --check scripts/verify-performance.mjs && node --check scripts/verify-soak.mjs && node --check scripts/verify-xianjian-perfect.mjs && node --check web/app.js && node --check web/runtime-api.js && node --check web/runtime-controller.js && node --check web/checkpoint-codec.js && node --check web/audio-policy.js && node --check web/input-probe.js && node --check web/gc-probe.js && node --check web/graphics-probe.js && node --check web/video-scaling.js && node --check web/compatibility-profiles.js && node --check web/virtual-keypad.js && node --check web/media-transcoder.js && node --check web/audio-transcoder.worker.js && npm test",
     "release:build": "node scripts/package-runtime.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
+    "esbuild": "0.25.9",
+    "fflate": "0.8.2",
     "puppeteer-core": "24.16.0"
   }
 }

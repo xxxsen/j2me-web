@@ -27,6 +27,9 @@ npm run build:runtime
 - 运行所有单元测试和与改动相关的真实浏览器回归；
 - 从远程固定提交完成一次全量 `build:runtime`；
 - 在 Chrome 中覆盖启动、输入、音频、暂停/恢复、截图、GC 和 checkpoint 恢复；
-- 运行 `npm run release:build` 并核对 metadata 中的提交、tag、资产大小和 SHA-256。
+- 运行 `npm run release:build`，核对 ZIP、`.sha256` 与 metadata，并确认 ZIP 中只有一个版本化根目录；
+- 运行 `npm run test:release`，在 Chrome 中确认 `j2me-runtime.js` 可导入、cross-origin isolation 生效，且内嵌 glue 的音频 worker 可以初始化；
+- 维护者可通过 `J2ME_RELEASE_TEST_JAR=/path/to/game.jar npm run test:release` 使用合法本地 JAR 追加完整启动和首帧验证；
+- 解压后确认 manifest 所列的 Wasm、worker 和数据资产全部存在。
 
 具体发布顺序见 [MAINTENANCE.md](MAINTENANCE.md)。
