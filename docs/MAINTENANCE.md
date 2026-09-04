@@ -1,39 +1,41 @@
 # 维护与发布
 
-## 分支
+## 依赖
 
-- `j2me-web`、`miniJVM`、`freej2meOnMinijvm` 和 `freej2me-plus` 的长期维护分支均为 `main`。
-- fork 的 GitHub 默认分支必须设置为 `main`，开发提交直接基于该分支向前维护。
-- 合并上游时先记录上游基线提交或 tag，再解决冲突并重新执行完整构建和兼容性烟测。
+`scripts/build-runtime.sh` 中的 miniJVM、freej2meOnMinijvm 和 FreeJ2ME Plus 必须固定到完整提交。更新 fork 时，先在 fork 中完成提交、构建和推送，再更新主仓库的固定哈希、README 与 `THIRD_PARTY_NOTICES.md`。
 
-## 提交
+freej2meOnMinijvm 的顶层授权仍需明确；在授权问题解决前，不得删除现有风险说明或把组合产物笼统声明为 MIT。
 
-一个可独立说明的功能或 bugfix 使用一个提交。三个 fork 的提交先完成并推送，再更新 `scripts/build-runtime.sh` 中的完整提交哈希；最后提交 `j2me-web` 的集成变化，保证任何主仓库提交都能从远端复现构建。
+## 分支与提交
+
+`j2me-web`、`miniJVM`、`freej2meOnMinijvm` 和 `freej2me-plus` 的长期维护分支均为 `main`。一个可独立说明的功能或 bugfix 使用一个提交，不混入无关格式化。
 
 ## Tag
 
-fork 使用：
+fork 使用 annotated tag：
 
 ```text
 j2me-web-{upstream_commit_or_tag}-{revision}
 ```
 
-例如基于上游提交 `ac94e627...` 的第一次 j2me-web 发布为 `j2me-web-ac94e627-1`。同一上游基线继续发布时递增 revision；切换上游 tag/提交后 revision 从 1 重新开始。tag 应使用 annotated tag，并在说明中写明完整上游基线和当前提交。
+同一上游基线递增 revision，切换基线后从 1 开始。tag 说明必须记录完整上游基线和当前 fork 提交。
 
-主仓库使用语义化版本 tag：
+主仓库使用 annotated 语义化版本 tag：
 
 ```text
 vX.Y.Z
 ```
 
-首个版本为 `v0.0.1`。
+公共 API 或 save ABI 的破坏性变更升级 major。已发布 tag 不移动、覆盖或复用。
 
-## 发布检查
+## 发布顺序
 
-1. 确认四个仓库工作区干净且位于 `main`。
-2. 运行 `npm run check`、`npm run test:input`、`npm run test:audio`、`npm run test:media`、`npm run test:3d`、`npm run test:performance`、`npm run test:xianjian-perfect`、`npm run test:gc` 和默认 15 分钟的 `npm run test:soak`（仅 Google Chrome）。
-3. 仅使用远端默认地址运行 `npm run build:runtime`，验证固定提交均可拉取。
-4. 运行 `RELEASE_TAG=vX.Y.Z npm run release:build`，核对 metadata 的 commit、tag、资产大小与摘要。
-5. 至少烟测《仙剑奇侠传》《魔塔》《钻石狂潮》，检查画面、按键、MIDI、Web Audio、暂停/继续和 checkpoint 跨页面恢复。
-6. 更新 `runtime-manifest.json` 与 `docs/COMPATIBILITY.md`，明确通过路径与未验证范围。
-7. 推送 fork 的 `main` 和规范 tag，再推送 `j2me-web` 的 `main` 和 annotated 版本 tag；`v*` tag 会发布不可变运行时资产。
+1. 确认四个仓库工作区干净且均位于 `main`。
+2. 按 [TESTING.md](TESTING.md) 完成与本次版本匹配的验证。
+3. 推送已修改 fork 的 `main` 和规范 tag；未修改的 fork 不创建新 tag。
+4. 使用远程默认地址完整构建主仓库，确认固定提交可达。
+5. 更新版本、`runtime-manifest.json`、兼容性、依赖与第三方声明。
+6. 运行 `RELEASE_TAG=vX.Y.Z npm run release:build`，核对 `j2me-runtime-release.json`。
+7. 推送主仓库 `main` 和版本 tag。`v*` tag 会创建包含不可变资产与 metadata 的 GitHub Release。
+
+Release 失败时修复问题并发布新版本，不覆盖旧 tag 或旧资产。
