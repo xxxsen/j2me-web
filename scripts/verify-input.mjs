@@ -74,6 +74,7 @@ try {
   const releasedState = await page.evaluate(() =>
     window.__j2meDemoRuntime.getValidationProbe("J2ME_KEY_STATE_V1"));
   assert.equal(releasedState.state & 0x100, 0, "GameCanvas FIRE must clear after key release");
+  sequence = await page.evaluate(() => window.__j2meDemoRuntime.getValidationProbe("J2ME_INPUT_V1")?.sequence ?? 0);
   await page.click("#keypad-button");
   const touchExpected = [
     ["UP", -1], ["DOWN", -2], ["LEFT", -3], ["RIGHT", -4], ["FIRE", -5],
