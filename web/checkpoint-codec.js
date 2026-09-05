@@ -9,6 +9,24 @@ const maximumPathBytes = 1024;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
+export function measureCheckpoint(files) {
+  if (!Array.isArray(files) || files.length > maximumFiles) throw new Error("J2ME_CHECKPOINT_INVALID");
+  let total = fixedHeaderBytes;
+  const paths = new Set();
+  for (const file of files) {
+    const path = String(file?.path ?? "");
+    assertRelativePath(path);
+    const length = encoder.encode(path).byteLength;
+    if (paths.has(path) || length > maximumPathBytes || !Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0) {
+      throw new Error("J2ME_CHECKPOINT_INVALID");
+    }
+    paths.add(path);
+    total += 6 + length + file.sizeBytes;
+    if (total > MAX_CHECKPOINT_BYTES) throw new Error("J2ME_CHECKPOINT_TOO_LARGE");
+  }
+  return total;
+}
+
 export function encodeCheckpoint(contentDigest, files) {
   const digest = decodeDigest(contentDigest);
   const entries = normalizedEntries(files);

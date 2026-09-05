@@ -21,6 +21,10 @@
 
 `HOST` 模式只使用宿主显式传入的 checkpoint。`BROWSER` 模式挂载 Demo 的 IDBFS。两种模式不应隐式互通，不同游戏也不能共用 RMS 树。
 
+从 v0.3.3 起，BROWSER 按小写 JAR SHA-256 使用独立的 IDBFS 数据库。导入只替换该游戏的文件树。旧版本共用目录中的数据保持原样，不自动归属给任何游戏；需要迁移时，应在旧版本显式导出目标 checkpoint，再由宿主导入。仅凭旧共享数据库无法可靠识别文件所属的 JAR。
+
+创建 checkpoint 时，运行时会暂时将 JVM 挂起到安全点，再读取 RMS 文件树；完成后恢复调用前的运行或暂停状态。可用性轮询只检查文件元信息，不读取文件内容。格式与 save ABI 均保持 v1。
+
 ## 格式演进
 
 - 改变 save ABI 时必须更新 `runtime-manifest.json`、README、格式文档与回归测试。

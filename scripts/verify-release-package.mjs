@@ -71,7 +71,7 @@ try {
   browser = await puppeteer.launch({
     executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
     headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"]
+    args: ["--no-sandbox", "--disable-dev-shm-usage", "--enable-unsafe-swiftshader"]
   });
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${address.port}/`, { waitUntil: "domcontentloaded" });

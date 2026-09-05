@@ -1,5 +1,5 @@
-import { CHECKPOINT_FORMAT, MAX_CHECKPOINT_BYTES, decodeCheckpoint, encodeCheckpoint } from "./checkpoint-codec.js";
-import { installAudioActivation, resumeRuntimeAudio, suspendRuntimeAudio } from "./audio-policy.js";
+import { CHECKPOINT_FORMAT, decodeCheckpoint, encodeCheckpoint, measureCheckpoint } from "./checkpoint-codec.js";
+import { installAudioActivation, resumeRuntimeAudio, suspendRuntimeAudio, closeRuntimeAudio } from "./audio-policy.js";
 import { createAudioTranscoder } from "./media-transcoder.js";
 import { GameRuntimeController } from "./runtime-controller.js";
 import { INPUT_PROBE_KIND, consumeInputProbe } from "./input-probe.js";
@@ -52,15 +52,19 @@ export const runtimeAdapter = Object.freeze({
   checkpointFormat: CHECKPOINT_FORMAT,
   gameCompatibilityLine: "j2me-jar-v1",
   readableSaveAbis: Object.freeze(["j2me-rms-v1"]),
-  saveAbi: "j2me-rms-v1"
+  saveAbi: "j2me-rms-v1",
+  pauseSemantics: "VM_SAFEPOINTS",
+  screenshotSemantics: "LOGICAL_VIEWPORT",
+  browserStorageNamespace: "JAR_SHA256",
+  frameCounterSemantics: "CORE_PRESENTED_FRAMES"
 });
 
 export function createRuntime(config, options = {}) {
   validateRuntimeConfig(config);
   validateRuntimeOptions(options);
   return new GameRuntimeController(
-    (target, reportProgress, reportExitRequested) => mountJ2me(
-      config, target, options, reportProgress, reportExitRequested
+    (target, reportProgress, reportExitRequested, reportFailure, signal) => mountJ2me(
+      config, target, { ...options, signal }, reportProgress, reportExitRequested, reportFailure
     ),
     capabilities,
     options.signal ?? null
@@ -106,7 +110,7 @@ export async function sha256Hex(value, cryptoObject = globalThis.crypto) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function mountJ2me(config, target, options, reportProgress, reportExitRequested) {
+async function mountJ2me(config, target, options, reportProgress, reportExitRequested, reportFailure) {
   const frameWindow = options.frameWindow ?? target?.ownerDocument?.defaultView;
   const document = target?.ownerDocument;
   if (!document || !frameWindow || document !== frameWindow.document || !browserSupported(frameWindow)) {
@@ -116,7 +120,10 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   const restored = options.restorePayload == null
     ? null
     : decodeCheckpoint(options.restorePayload, config.contentDigest);
-  const jarBytes = await fetchJar(config.source, frameWindow, reportProgress);
+  const signal = options.signal;
+  signal.throwIfAborted();
+  const jarBytes = await fetchJar(config.source, frameWindow, reportProgress, signal);
+  signal.throwIfAborted();
   const profile = resolveCompatibilityProfile(config.source, {
     ...config.adapter.compatibilityProfile,
     viewport: config.adapter.viewport
@@ -141,11 +148,13 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   let exited = false;
   let paused = false;
   let mirrorFrame = 0;
-  let frameCount = 0;
+  let mirrorCount = 0;
   let viewMode = "LCD";
   let viewport = { ...config.adapter.viewport };
   let scalingMode = initialScalingMode;
   let exitReported = false;
+  let coreFailed = false;
+  let coreError = null;
   const hostBridgeReady = deferred();
   const pressedGamepadKeys = new Set();
   const pressedVirtualKeys = new Set();
@@ -154,7 +163,21 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   let gcProbe = null;
   let graphicsProbe = null;
 
-  const diagnostic = (message) => options.onDiagnostic?.({ runtime: "j2me", message: String(message) });
+  const diagnostic = (message) => {
+    try { options.onDiagnostic?.({ runtime: "j2me", message: String(message) }); }
+    catch { /* Host diagnostics must not interrupt core execution. */ }
+  };
+  const fatal = (reason) => {
+    coreFailed = true;
+    const error = stableJ2meError(reason);
+    coreError = error;
+    initialized.reject(error);
+    hostBridgeReady.reject(error);
+    void reportFailure(error);
+  };
+  // Either deferred can reject before its corresponding await is reached.
+  initialized.promise.catch(() => undefined);
+  hostBridgeReady.promise.catch(() => undefined);
   const reportCoreOutput = (message, error = false) => {
     const nextInputProbe = consumeInputProbe(message, inputProbe);
     if (nextInputProbe !== inputProbe) {
@@ -178,7 +201,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     }
     diagnostic(`${error ? "[error] " : ""}${message}`);
     if (/HOST_BRIDGE_READY/u.test(String(message))) hostBridgeReady.resolve();
-    if (/HOST_BRIDGE_FAILED/u.test(String(message))) hostBridgeReady.reject(new Error("J2ME_HOST_BRIDGE_UNAVAILABLE"));
+    if (/HOST_BRIDGE_FAILED/u.test(String(message))) fatal(new Error("J2ME_HOST_BRIDGE_UNAVAILABLE"));
     if (!exitReported && /MIDLET_EXIT_REQUESTED|MIDlet sent Destroyed Notification|APP TERMINATED!/u.test(String(message))) {
       exitReported = true;
       reportExitRequested();
@@ -186,6 +209,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
   };
 
   Object.assign(moduleOptions, {
+    noInitialRun: true,
     arguments: [
       "-Xmx128M",
       "-bootclasspath", "/lib/minijvm_rt.jar",
@@ -199,10 +223,12 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       jarBytes,
       profile,
       config.adapter.storage,
+      config.contentDigest.toLowerCase(),
       restored,
       reportProgress,
       diagnostic,
-      (error) => initialized.reject(stableJ2meError(error))
+      fatal,
+      signal
     )],
     print(message) { reportCoreOutput(message, false); },
     printErr(message) { reportCoreOutput(message, true); },
@@ -218,40 +244,65 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       } else diagnostic(message);
     },
     onRuntimeInitialized() { initialized.resolve(); },
-    onAbort(reason) { initialized.reject(stableJ2meError(reason)); }
+    onAbort: fatal
   });
 
+  const inputGate = installInputGate(frameWindow, () => paused || exited);
+  const releaseInput = () => {
+    releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
+    releaseKeys(frameWindow, surface.source, pressedVirtualKeys, profile);
+  };
+  const hidden = () => { if (document.hidden) frameWindow.dispatchEvent(new frameWindow.Event("blur")); };
+  frameWindow.addEventListener("blur", releaseInput, true);
+  document.addEventListener("visibilitychange", hidden);
   const pointerHandlers = installPointerForwarding(surface, frameWindow, () => {
     surface.source.focus({ preventScroll: true });
     resumeRuntimeAudio(frameWindow);
-  });
+  }, () => !paused && !exited);
   const audioActivation = installAudioActivation({
     frameWindow,
-    targets: [surface.source, surface.display]
+    targets: [surface.source, surface.display],
+    isActive: () => !paused && !exited
   });
   applyViewMode(surface, viewMode);
 
   try {
-    const createModule = options.moduleFactory ?? await loadModuleFactory(runtimeBaseUrl);
-    module = await createModule(moduleOptions);
-    await initialized.promise;
-    await withTimeout(frameWindow, hostBridgeReady.promise, 60000, "J2ME_HOST_BRIDGE_UNAVAILABLE");
+    const createModule = options.moduleFactory ?? await loadModuleFactory(runtimeBaseUrl, frameWindow, signal);
+    signal.throwIfAborted();
+    if (!options.moduleFactory) {
+      const [wasmBinary, data] = await Promise.all([
+        fetchRuntimeAsset(new URL("runtime.wasm", runtimeBaseUrl), frameWindow, signal),
+        fetchRuntimeAsset(new URL("runtime.data", runtimeBaseUrl), frameWindow, signal)
+      ]);
+      moduleOptions.wasmBinary = wasmBinary;
+      moduleOptions.getPreloadedPackage = () => data;
+    }
+    signal.throwIfAborted();
+    const creating = Promise.resolve(createModule(moduleOptions));
+    creating.then((lateModule) => { if (exited) disposeModule(lateModule); }, () => undefined);
+    module = await withTimeout(frameWindow, creating, 60000, "J2ME_RUNTIME_INIT_TIMEOUT", signal);
+    await abortable(initialized.promise, signal);
+    signal.throwIfAborted();
+    if (typeof module.callMain !== "function") throw new Error("J2ME_RUNTIME_ASSET_INVALID");
+    module.callMain(moduleOptions.arguments);
+    await withTimeout(frameWindow, hostBridgeReady.promise, 60000, "J2ME_HOST_BRIDGE_UNAVAILABLE", signal);
     surface.source.focus({ preventScroll: true });
     const mirror = () => {
       if (exited) return;
       if (!paused) {
-        if (viewMode === "LCD") drawLcd(surface, viewport);
-        updateGamepad(frameWindow, surface.source, pressedGamepadKeys, profile);
-        frameCount += 1;
-        if (frameCount % 30 === 0) resumeRuntimeAudio(frameWindow);
+        drawLcd(surface, viewport, viewMode === "LCD");
+        if (document.hasFocus() && !document.hidden) updateGamepad(frameWindow, surface.source, pressedGamepadKeys, profile);
+        else releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
+        mirrorCount += 1;
+        if (mirrorCount % 30 === 0) resumeRuntimeAudio(frameWindow);
       }
       mirrorFrame = frameWindow.requestAnimationFrame(mirror);
     };
     mirrorFrame = frameWindow.requestAnimationFrame(mirror);
     resumeRuntimeAudio(frameWindow);
   } catch (error) {
-    cleanup();
-    throw stableJ2meError(error);
+    await cleanup();
+    throw stableJ2meError(coreError ?? error);
   }
 
   async function flushStorage() {
@@ -259,7 +310,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     await syncFileSystem(module.FS, false);
   }
 
-  function cleanup() {
+  async function cleanup() {
     if (exited) return;
     exited = true;
     if (mirrorFrame) frameWindow.cancelAnimationFrame(mirrorFrame);
@@ -276,41 +327,51 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       else frameWindow.__j2meAudioProfile = previousAudioProfile;
     }
     pointerHandlers.remove();
+    frameWindow.removeEventListener("blur", releaseInput, true);
+    document.removeEventListener("visibilitychange", hidden);
     surface.resizeObserver?.disconnect();
-    try { module?.pauseMainLoop?.(); } catch { /* The frame may already be tearing down. */ }
+    disposeModule(module ?? moduleOptions);
     pauseAudio(frameWindow);
+    inputGate.remove();
     target.replaceChildren();
+    await closeRuntimeAudio(frameWindow);
   }
 
   return {
     checkpoint: async () => {
       if (exited) throw new Error("J2ME_RUNTIME_INVALID_STATE");
-      await flushStorage();
-      const files = readRmsFiles(module.FS);
-      if (!files.length) throw new Error("J2ME_CHECKPOINT_UNAVAILABLE");
-      return { bytes: encodeCheckpoint(config.contentDigest, files), format: CHECKPOINT_FORMAT };
+      const wasPaused = paused;
+      if (!wasPaused) await pauseCore();
+      try {
+        await flushStorage();
+        const files = readRmsFiles(module.FS);
+        if (!files.length) throw new Error("J2ME_CHECKPOINT_UNAVAILABLE");
+        return { bytes: encodeCheckpoint(config.contentDigest, files), format: CHECKPOINT_FORMAT };
+      } finally { if (!wasPaused && !exited && !signal.aborted) await resumeCore(); }
     },
     exit: async () => {
       if (exited) return;
-      await flushStorage().catch(() => undefined);
-      cleanup();
+      try {
+        if (!coreFailed) {
+          if (!paused) await pauseCore(true);
+          else await waitCoreState(1, true);
+          await flushStorage();
+        }
+      } finally { await cleanup(); }
     },
     getCanvas: () => surface.display,
     getCheckpointAvailability: () => {
       if (exited || !module?.FS) return { available: false, blocker: "NOT_READY" };
       try {
-        const files = readRmsFiles(module.FS);
+        const files = readRmsFiles(module.FS, false);
         if (!files.length) return { available: false, blocker: "SAVE_DISABLED" };
-        const bytes = files.reduce((total, file) =>
-          total + file.bytes.byteLength + new TextEncoder().encode(file.path).byteLength + 6, 44);
-        return bytes <= MAX_CHECKPOINT_BYTES
-          ? { available: true, blocker: null }
-          : { available: false, blocker: "UNSUPPORTED" };
-      } catch {
-        return { available: false, blocker: "BUSY" };
+        measureCheckpoint(files);
+        return { available: true, blocker: null };
+      } catch (error) {
+        return { available: false, blocker: /^J2ME_CHECKPOINT_/u.test(error?.message) ? "UNSUPPORTED" : "BUSY" };
       }
     },
-    getFrameCount: () => frameCount,
+    getFrameCount: () => module?._j2me_get_frame_count?.() ?? 0,
     getScalingMode: () => scalingMode,
     getValidationProbe: (kind) => {
       if (kind === INPUT_PROBE_KIND) return inputProbe;
@@ -320,22 +381,9 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       if (kind === GRAPHICS_PROBE_KIND) return graphicsProbe;
       return null;
     },
-    pause: async () => {
-      if (exited || paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
-      paused = true;
-      releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
-      releaseKeys(frameWindow, surface.source, pressedVirtualKeys, profile);
-      module.pauseMainLoop?.();
-      pauseAudio(frameWindow);
-    },
-    resume: async () => {
-      if (exited || !paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
-      module.resumeMainLoop?.();
-      paused = false;
-      resumeRuntimeAudio(frameWindow);
-      surface.source.focus({ preventScroll: true });
-    },
-    screenshot: () => canvasBlob(surface.display),
+    pause: pauseCore,
+    resume: resumeCore,
+    screenshot: () => canvasBlob(surface.staging),
     setVolume: (value) => {
       frameWindow.__j2meAudioProfile.masterGain = value;
       const audio = frameWindow.__j2meWebAudio;
@@ -355,6 +403,7 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
       if (!VIRTUAL_KEY_ACTIONS.includes(action) || typeof pressed !== "boolean") {
         throw new Error("J2ME_INPUT_INVALID");
       }
+      if (paused || exited) return;
       const alreadyPressed = pressedVirtualKeys.has(action);
       if (pressed === alreadyPressed) return;
       dispatchAction(frameWindow, surface.source, action, pressed, profile);
@@ -373,19 +422,73 @@ async function mountJ2me(config, target, options, reportProgress, reportExitRequ
     },
     unlockAudio: () => resumeRuntimeAudio(frameWindow)
   };
+
+  async function pauseCore(allowAborted = false) {
+    if (exited || paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
+    try {
+      releaseKeys(frameWindow, surface.source, pressedGamepadKeys, profile);
+      releaseKeys(frameWindow, surface.source, pressedVirtualKeys, profile);
+      frameWindow.dispatchEvent(new frameWindow.Event("blur"));
+      paused = true;
+      module.pauseMainLoop?.();
+      pauseAudio(frameWindow);
+      if (typeof module._j2me_request_pause !== "function") throw new Error("J2ME_RUNTIME_ASSET_INVALID");
+      module._j2me_request_pause(1);
+      await waitCoreState(1, allowAborted);
+      pauseAudio(frameWindow);
+    } catch (error) {
+      if (!signal.aborted) fatal(error);
+      throw error;
+    }
+  }
+
+  async function resumeCore() {
+    if (exited || !paused) throw new Error("J2ME_RUNTIME_INVALID_STATE");
+    try {
+      module._j2me_request_pause(0);
+      await waitCoreState(0);
+      paused = false;
+      module.resumeMainLoop?.();
+      resumeRuntimeAudio(frameWindow);
+      surface.source.focus({ preventScroll: true });
+    } catch (error) {
+      if (!signal.aborted) fatal(error);
+      throw error;
+    }
+  }
+
+  async function waitCoreState(expected, allowAborted = false) {
+    const deadline = Date.now() + 10000;
+    while (module._j2me_get_pause_state() !== expected) {
+      if (!allowAborted) signal.throwIfAborted();
+      if (module._j2me_get_pause_state() < 0 || Date.now() >= deadline) throw new Error("J2ME_PAUSE_FAILED");
+      await new Promise((resolve) => frameWindow.setTimeout(resolve, 10));
+    }
+  }
 }
 
-async function loadModuleFactory(runtimeBaseUrl) {
-  const imported = await import(new URL("runtime.js", runtimeBaseUrl).href);
-  if (typeof imported.default !== "function") throw new Error("J2ME_RUNTIME_ASSET_INVALID");
-  return imported.default;
+async function loadModuleFactory(runtimeBaseUrl, frameWindow, signal) {
+  const key = `__j2meLoader_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+  const script = frameWindow.document.createElement("script");
+  const url = new URL("runtime-loader.js", runtimeBaseUrl);
+  url.searchParams.set("bridge", key);
+  script.type = "module";
+  script.src = url.href;
+  const pending = new Promise((resolve, reject) => {
+    frameWindow[key] = { resolve, reject };
+    script.onerror = () => reject(new Error("J2ME_RUNTIME_ASSET_INVALID"));
+  });
+  try {
+    frameWindow.document.head.append(script);
+    return await abortable(pending, signal);
+  } finally { delete frameWindow[key]; script.remove(); }
 }
 
-async function fetchJar(source, frameWindow, reportProgress) {
+async function fetchJar(source, frameWindow, reportProgress, signal) {
   reportProgress({ phase: "PROJECT_CONTENT", loadedBytes: 0, totalBytes: source.sizeBytes });
   let response;
-  try { response = await frameWindow.fetch(source.url); }
-  catch { throw new Error("J2ME_CONTENT_FETCH_FAILED"); }
+  try { response = await abortable(frameWindow.fetch(source.url, { signal }), signal); }
+  catch (error) { signal.throwIfAborted(); throw new Error("J2ME_CONTENT_FETCH_FAILED", { cause: error }); }
   if (!response.ok) throw new Error("J2ME_CONTENT_FETCH_FAILED");
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isSafeInteger(declaredLength) && declaredLength > 0 && declaredLength !== source.sizeBytes) {
@@ -396,14 +499,14 @@ async function fetchJar(source, frameWindow, reportProgress) {
   let loaded = 0;
   if (response.body?.getReader) {
     const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
+    try { while (true) {
+      const { done, value } = await abortable(reader.read(), signal);
       if (done) break;
       loaded += value.byteLength;
       if (loaded > source.sizeBytes || loaded > maximumJarBytes) throw new Error("J2ME_CONTENT_SIZE_MISMATCH");
       chunks.push(value);
       reportProgress({ phase: "PROJECT_CONTENT", loadedBytes: loaded, totalBytes: source.sizeBytes });
-    }
+    } } finally { void reader.cancel().catch(() => undefined); reader.releaseLock(); }
   } else {
     const value = new Uint8Array(await response.arrayBuffer());
     chunks.push(value);
@@ -425,7 +528,8 @@ async function fetchJar(source, frameWindow, reportProgress) {
   return bytes;
 }
 
-function prepareFileSystem(moduleOptions, jarBytes, profile, storage, restored, reportProgress, diagnostic, reportFailure) {
+function prepareFileSystem(moduleOptions, jarBytes, profile, storage, contentDigest, restored, reportProgress, diagnostic, reportFailure, signal) {
+  signal.throwIfAborted();
   const fs = moduleOptions.FS;
   if (!fs) throw new Error("J2ME_RUNTIME_FILESYSTEM_UNAVAILABLE");
   if (!fs.analyzePath(persistenceRoot).exists) fs.mkdirTree(persistenceRoot);
@@ -456,19 +560,29 @@ function prepareFileSystem(moduleOptions, jarBytes, profile, storage, restored, 
     return;
   }
 
-  fs.mount(idbfs, { autoPersist: true }, persistenceRoot);
+  const browserRoot = `/j2me-rms/${contentDigest}`;
+  fs.mkdirTree(browserRoot);
+  fs.mount(idbfs, { autoPersist: true }, browserRoot);
+  fs.rmdir(persistenceRoot);
+  fs.symlink(browserRoot, persistenceRoot);
   moduleOptions.addRunDependency("j2me-rms-idbfs");
   fs.syncfs(true, (loadError) => {
-    if (loadError) diagnostic(`IDBFS restore failed: ${loadError}`);
-    try { applyRestore(); }
+    try {
+      signal.throwIfAborted();
+      if (loadError) throw new Error("J2ME_STORAGE_FAILED", { cause: loadError });
+      applyRestore();
+    }
     catch (error) {
       reportFailure(error);
       moduleOptions.removeRunDependency("j2me-rms-idbfs");
       return;
     }
     const complete = (saveError) => {
-      if (saveError) diagnostic(`IDBFS checkpoint import failed: ${saveError}`);
-      finish();
+      try {
+        signal.throwIfAborted();
+        if (saveError) throw new Error("J2ME_STORAGE_FAILED", { cause: saveError });
+        finish();
+      } catch (error) { reportFailure(error); }
       moduleOptions.removeRunDependency("j2me-rms-idbfs");
     };
     if (restored) fs.syncfs(false, complete);
@@ -516,8 +630,8 @@ function resizeDisplay(surface, viewport, scalingMode) {
   surface.scalingMode = scalingMode;
   surface.display.width = viewport.width * factor;
   surface.display.height = viewport.height * factor;
-  surface.staging.width = viewport.width;
-  surface.staging.height = viewport.height;
+  if (surface.staging.width !== viewport.width) surface.staging.width = viewport.width;
+  if (surface.staging.height !== viewport.height) surface.staging.height = viewport.height;
   surface.scaledPixels = scalingMode === "SCALE2X"
     ? new Uint32Array(viewport.width * viewport.height * 4)
     : null;
@@ -551,20 +665,21 @@ function applyViewMode(surface, mode) {
   surface.source.style.pointerEvents = lcd ? "none" : "auto";
 }
 
-function drawLcd(surface, viewport) {
+function drawLcd(surface, viewport, present = true) {
   if (!surface.source.width || !surface.source.height) return;
   const context = surface.display.getContext("2d", { alpha: false });
   if (!context) return;
   try {
-    if (surface.scalingMode !== "SCALE2X") {
-      context.drawImage(surface.source, 2, 32, viewport.width, viewport.height,
-        0, 0, surface.display.width, surface.display.height);
-      return;
-    }
     const stagingContext = surface.staging.getContext("2d", { alpha: false, willReadFrequently: true });
     if (!stagingContext) return;
     stagingContext.drawImage(surface.source, 2, 32, viewport.width, viewport.height,
       0, 0, viewport.width, viewport.height);
+    if (!present) return;
+    if (surface.scalingMode !== "SCALE2X") {
+      context.drawImage(surface.staging, 0, 0, viewport.width, viewport.height,
+        0, 0, surface.display.width, surface.display.height);
+      return;
+    }
     const input = stagingContext.getImageData(0, 0, viewport.width, viewport.height);
     scale2xPixels(new Uint32Array(input.data.buffer), viewport.width, viewport.height, surface.scaledPixels);
     surface.scaledImage ??= context.createImageData(viewport.width * 2, viewport.height * 2);
@@ -573,9 +688,9 @@ function drawLcd(surface, viewport) {
   } catch { /* The WebGL surface may be unavailable during a resize. */ }
 }
 
-function installPointerForwarding(surface, frameWindow, activate) {
+function installPointerForwarding(surface, frameWindow, activate, isActive) {
   const forward = (event) => {
-    if (surface.display.style.display === "none") return;
+    if (!isActive() || surface.display.style.display === "none") return;
     event.preventDefault();
     if (event.type === "pointerdown") surface.display.setPointerCapture?.(event.pointerId);
     const output = surface.display.getBoundingClientRect();
@@ -647,7 +762,7 @@ function dispatchAction(frameWindow, canvas, action, down, profile) {
   canvas.dispatchEvent(event);
 }
 
-function readRmsFiles(fs) {
+function readRmsFiles(fs, readContents = true) {
   if (!fs.analyzePath(persistenceRoot).exists) return [];
   const files = [];
   const visit = (absolute, relative) => {
@@ -657,7 +772,7 @@ function readRmsFiles(fs) {
       const path = relative ? `${relative}/${name}` : name;
       const stats = fs.stat(child);
       if (fs.isDir(stats.mode)) visit(child, path);
-      else files.push({ path, bytes: fs.readFile(child) });
+      else files.push(readContents ? { path, bytes: fs.readFile(child) } : { path, sizeBytes: stats.size });
     }
   };
   visit(persistenceRoot, "");
@@ -681,14 +796,45 @@ function syncFileSystem(fs, populate) {
   return new Promise((resolve, reject) => fs.syncfs(populate, (error) => error ? reject(error) : resolve()));
 }
 
-function withTimeout(frameWindow, promise, milliseconds, code) {
+async function withTimeout(frameWindow, promise, milliseconds, code, signal) {
+  let timer;
+  try {
+    return await abortable(Promise.race([promise, new Promise((_resolve, reject) => {
+      timer = frameWindow.setTimeout(() => reject(new Error(code)), milliseconds);
+    })]), signal);
+  } finally { frameWindow.clearTimeout(timer); }
+}
+
+function abortable(promise, signal) {
   return new Promise((resolve, reject) => {
-    const timer = frameWindow.setTimeout(() => reject(new Error(code)), milliseconds);
-    promise.then(
-      (value) => { frameWindow.clearTimeout(timer); resolve(value); },
-      (error) => { frameWindow.clearTimeout(timer); reject(error); }
-    );
+    const abort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    Promise.resolve(promise).then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+    if (signal.aborted) abort();
   });
+}
+
+async function fetchRuntimeAsset(url, frameWindow, signal) {
+  const response = await frameWindow.fetch(url, { signal });
+  if (!response.ok) throw new Error("J2ME_RUNTIME_ASSET_INVALID");
+  return response.arrayBuffer();
+}
+
+function disposeModule(module) {
+  try { module?.pauseMainLoop?.(); } catch { /* Aborted module. */ }
+  try { module?.GLFW?.terminate?.(); } catch { /* Partially initialized GLFW. */ }
+  try { module?.PThread?.terminateAllThreads?.(); } catch { /* Partially initialized workers. */ }
+}
+
+function installInputGate(frameWindow, blocked) {
+  const types = ["keydown", "keyup", "keypress", "mousedown", "mouseup", "mousemove", "wheel",
+    "touchstart", "touchend", "touchmove", "blur", "focus", "resize", "gamepadconnected", "gamepaddisconnected"];
+  const gate = (event) => { if (blocked()) event.stopImmediatePropagation(); };
+  for (const type of types) frameWindow.addEventListener(type, gate, true);
+  return { remove: () => { for (const type of types) frameWindow.removeEventListener(type, gate, true); } };
 }
 
 function pauseAudio(frameWindow) {
@@ -727,12 +873,18 @@ function validJar(bytes) {
 
 function validateRuntimeOptions(options) {
   if (!options || typeof options !== "object" ||
-    options.restorePayload != null && !(options.restorePayload instanceof Uint8Array) ||
-    options.signal != null && !(options.signal instanceof AbortSignal) ||
+    options.restorePayload != null && !(ArrayBuffer.isView(options.restorePayload) &&
+      Object.prototype.toString.call(options.restorePayload) === "[object Uint8Array]") ||
+    options.signal != null && !isAbortSignal(options.signal) ||
     options.onDiagnostic != null && typeof options.onDiagnostic !== "function" ||
     options.moduleFactory != null && typeof options.moduleFactory !== "function") {
     throw new Error("J2ME_RUNTIME_OPTIONS_INVALID");
   }
+}
+
+function isAbortSignal(value) {
+  try { return typeof Object.getOwnPropertyDescriptor(AbortSignal.prototype, "aborted").get.call(value) === "boolean"; }
+  catch { return false; }
 }
 
 function browserSupported(frameWindow) {
@@ -768,6 +920,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 function stableJ2meError(error) {
+  if (error?.name === "AbortError") return new DOMException("Aborted", "AbortError");
   if (error instanceof Error && /^(?:J2ME|RUNTIME|CHECKPOINT|PLAYER)_[A-Z0-9_]+$/u.test(error.message)) return error;
   return new Error("J2ME_RUNTIME_FAILED");
 }

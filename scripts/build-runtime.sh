@@ -5,7 +5,7 @@ PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CACHE_ROOT="$PROJECT_ROOT/.cache/upstream"
 OUTPUT_ROOT="$PROJECT_ROOT/public/runtime"
 MINIJVM_REPOSITORY="${MINIJVM_REPOSITORY:-https://github.com/xxxsen/miniJVM.git}"
-MINIJVM_COMMIT="${MINIJVM_COMMIT:-1533f6f9d858cdd67f3262811f2410b1a42a7255}"
+MINIJVM_COMMIT="${MINIJVM_COMMIT:-8d67a8c029836ad123eef0b5f7e8ab6298b2bb57}"
 FREEJ2ME_REPOSITORY="${FREEJ2ME_REPOSITORY:-https://github.com/xxxsen/freej2meOnMinijvm.git}"
 FREEJ2ME_COMMIT="${FREEJ2ME_COMMIT:-abc7aebca03b914df289e8e2f566c3a8b4173464}"
 FREEJ2ME_PLUS_REPOSITORY="${FREEJ2ME_PLUS_REPOSITORY:-https://github.com/xxxsen/freej2me-plus.git}"
@@ -189,6 +189,12 @@ javac -source 8 -target 8 -encoding UTF-8 \
   -cp "$DIST/lib/glfw_gui.jar:$DIST/lib/xgui.jar" \
   -d /build/classes/launcher @/build/classes/launcher/sources.txt
 jar cf "$DIST/lib/webj2me.jar" -C /build/classes/launcher .
+
+mkdir -p /build/classes/lifecycle
+javac -source 8 -target 8 -encoding UTF-8 \
+  -cp "$DIST/lib/freej2me-plus.jar" \
+  -d /build/classes/lifecycle /project/test/java/org/j2me/test/LifecycleMidlet.java
+jar cfm /build/lifecycle.jar /project/test/java/lifecycle.mf -C /build/classes/lifecycle .
 '
 
 echo "[2/4] Compiling miniJVM to WebAssembly"
@@ -216,7 +222,7 @@ emcc -O3 -msimd128 -o /build/wasm/runtime.js \
   -s FORCE_FILESYSTEM=1 -s EXIT_RUNTIME=0 \
   -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=createJ2meModule \
   -s EXPORTED_FUNCTIONS="[\"_main\",\"_malloc\",\"_free\"]" \
-  -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"FS\",\"addRunDependency\",\"removeRunDependency\"]" \
+  -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"FS\",\"callMain\",\"PThread\",\"GLFW\",\"addRunDependency\",\"removeRunDependency\"]" \
   -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
   -s WARN_ON_UNDEFINED_SYMBOLS=0 \
   -s ENVIRONMENT=web,worker
@@ -267,5 +273,8 @@ cp "$BUILD_ROOT"/wasm/runtime.* "$OUTPUT_ROOT/"
 cp "$BUILD_ROOT/audio-transcoder/audio-transcoder.glue.wasm" "$OUTPUT_ROOT/audio-transcoder.wasm"
 cp "$BUILD_ROOT/audio-transcoder/audio-transcoder.glue.js" "$OUTPUT_ROOT/"
 cp "$PROJECT_ROOT/web/audio-transcoder.worker.js" "$OUTPUT_ROOT/"
+cp "$PROJECT_ROOT/web/runtime-loader.js" "$OUTPUT_ROOT/"
+mkdir -p "$PROJECT_ROOT/.cache/test-runtime"
+cp "$BUILD_ROOT/lifecycle.jar" "$PROJECT_ROOT/.cache/test-runtime/"
 
 echo "Runtime built in $OUTPUT_ROOT"
