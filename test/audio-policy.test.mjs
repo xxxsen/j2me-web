@@ -4,7 +4,8 @@ import test from "node:test";
 import {
   installAudioActivation,
   resumeRuntimeAudio,
-  suspendRuntimeAudio
+  suspendRuntimeAudio,
+  closeRuntimeAudio
 } from "../web/audio-policy.js";
 
 test("runtime audio starts suspended Web Audio devices by default", () => {
@@ -46,6 +47,21 @@ test("pause suspends both legacy and direct browser audio contexts", () => {
   assert.equal(suspendRuntimeAudio(frameWindow), true);
   assert.equal(suspendCalls, 1);
   assert.equal(suspendRuntimeAudio({}), false);
+});
+
+test("exit closes shared audio contexts once and retires playback callbacks", async () => {
+  let closes = 0;
+  let stops = 0;
+  const context = { state: "running", close: async () => { closes++; } };
+  const item = { closed: false, playRequested: true, source: { onended() {}, stop() { stops++; }, disconnect() {} } };
+  const environment = { miniaudio: { devices: [{ webaudio: context }] },
+    __j2meWebAudio: { context, items: new Map([[1, item]]) } };
+  await closeRuntimeAudio(environment);
+  assert.equal(closes, 1);
+  assert.equal(stops, 1);
+  assert.equal(item.closed, true);
+  assert.equal(item.source.onended, null);
+  assert.equal(environment.__j2meWebAudio, undefined);
 });
 
 test("keyboard and pointer activation retry audio without a separate sound control", () => {

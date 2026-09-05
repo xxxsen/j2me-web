@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import { createAudioTranscoder } from "../web/media-transcoder.js";
 
@@ -44,7 +45,7 @@ test("audio transcoding is lazy, transferable and reusable", async () => {
 
 test("invalid transcoder results fail closed", async () => {
   class EmptyWorker {
-    addEventListener(_type, listener) { this.listener = listener; }
+    addEventListener(type, listener) { if (type === "message") this.listener = listener; }
     postMessage(message) {
       queueMicrotask(() => this.listener({ data: { replyFor: message.id, value: message.cmd === "init" } }));
     }
@@ -57,4 +58,50 @@ test("invalid transcoder results fail closed", async () => {
   });
   await assert.rejects(transcoder.transcode(Uint8Array.of(1).buffer), /J2ME_MEDIA_TRANSCODE_FAILED/u);
   assert.deepEqual(transcoder.getStats(), { failures: 1, requests: 1, successes: 0 });
+});
+
+test("worker failures reject every caller and allow a fresh worker to retry", async () => {
+  const workers = [];
+  class Worker {
+    constructor() { this.listeners = new Map(); workers.push(this); }
+    addEventListener(type, listener) { this.listeners.set(type, listener); }
+    postMessage(message) {
+      queueMicrotask(() => {
+        if (workers[0] === this) this.listeners.get("error")?.({ preventDefault() {} });
+        else this.listeners.get("message")({ data: { replyFor: message.id,
+          value: message.cmd === "init" ? true : new ArrayBuffer(44) } });
+      });
+    }
+    terminate() { this.terminated = true; }
+  }
+  const transcoder = createAudioTranscoder("https://runtime.example/v1/", {
+    Worker, fetch: async () => ({ ok: true }), WebAssembly: { compileStreaming: async () => ({}) }
+  });
+  try {
+    const results = await Promise.race([
+      Promise.allSettled([transcoder.transcode(Uint8Array.of(1)), transcoder.transcode(Uint8Array.of(2))]),
+      new Promise((resolve) => setTimeout(() => resolve("hung"), 100))
+    ]);
+    assert.notEqual(results, "hung");
+    assert.ok(results.every((result) => result.status === "rejected"));
+    assert.equal(workers[0].terminated, true);
+    assert.equal((await transcoder.transcode(Uint8Array.of(3))).byteLength, 44);
+    assert.equal(workers.length, 2);
+  } finally { transcoder.close(); }
+});
+
+test("audio buffers cross host and frame JavaScript realms", async () => {
+  class Worker {
+    addEventListener(type, listener) { if (type === "message") this.receive = listener; }
+    postMessage(message) {
+      queueMicrotask(() => this.receive({ data: { replyFor: message.id,
+        value: message.cmd === "init" ? true : runInNewContext("new ArrayBuffer(44)") } }));
+    }
+    terminate() {}
+  }
+  const transcoder = createAudioTranscoder("https://runtime.example/v1/", {
+    Worker, fetch: async () => ({ ok: true }), WebAssembly: { compileStreaming: async () => ({}) }
+  });
+  try { assert.equal((await transcoder.transcode(runInNewContext("new ArrayBuffer(4)"))).byteLength, 44); }
+  finally { transcoder.close(); }
 });

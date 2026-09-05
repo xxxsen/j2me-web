@@ -30,6 +30,7 @@ if (tag !== expectedTag || !/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(tag) ||
 
 const runtimeAssetSources = [
   ["runtime.js", "public/runtime/runtime.js"],
+  ["runtime-loader.js", "web/runtime-loader.js"],
   ["runtime.wasm", "public/runtime/runtime.wasm"],
   ["runtime.data", "public/runtime/runtime.data"],
   ["runtime.worker.js", "public/runtime/runtime.worker.js"],
@@ -38,6 +39,7 @@ const runtimeAssetSources = [
 const runtimeAssetNames = [
   "j2me-runtime.js",
   "runtime.js",
+  "runtime-loader.js",
   "runtime.wasm",
   "runtime.data",
   "runtime.worker.js",
@@ -124,7 +126,7 @@ try {
       freej2meOnMinijvm: "abc7aebca03b914df289e8e2f566c3a8b4173464",
       freej2mePlus: "f416be17e069ec9658b868ce0a580992b9270097",
       ffmpeg: "db69d06eeeab4f46da15030a80d539efb4503ca8",
-      miniJVM: "1533f6f9d858cdd67f3262811f2410b1a42a7255"
+      miniJVM: "8d67a8c029836ad123eef0b5f7e8ab6298b2bb57"
     },
     tag
   };

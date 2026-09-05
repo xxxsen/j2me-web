@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import {
   createRuntime,
@@ -28,6 +29,12 @@ const config = {
     viewport: { width: 240, height: 320 }
   }
 };
+
+test("restore byte views may originate in the host's other JavaScript realm", () => {
+  const restorePayload = runInNewContext("new Uint8Array([1, 2, 3])");
+  assert.doesNotThrow(() => createRuntime(config, { restorePayload }));
+  assert.throws(() => createRuntime(config, { restorePayload: new Uint16Array(1) }), /J2ME_RUNTIME_OPTIONS_INVALID/u);
+});
 
 test("public descriptor matches Retrom's engine-neutral capability shape", () => {
   validateRuntimeConfig(config);

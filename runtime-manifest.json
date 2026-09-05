@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageName": "j2me-web",
-  "packageVersion": "0.3.2",
+  "packageVersion": "0.3.3",
   "publicApiVersion": 1,
   "admissionStatus": "CANDIDATE",
   "adapter": {
@@ -10,6 +10,10 @@
     "adapterAbi": "j2me-rms",
     "checkpointFormat": "j2me-rms-bundle-v1",
     "checkpointSemantics": "RMS_FILE_TREE",
+    "pauseSemantics": "VM_SAFEPOINTS",
+    "screenshotSemantics": "LOGICAL_VIEWPORT",
+    "browserStorageNamespace": "JAR_SHA256",
+    "frameCounterSemantics": "CORE_PRESENTED_FRAMES",
     "capabilities": {
       "pause": true,
       "screenshot": true,
@@ -47,6 +51,7 @@
   "assets": [
     "j2me-runtime.js",
     "runtime.js",
+    "runtime-loader.js",
     "runtime.wasm",
     "runtime.data",
     "runtime.worker.js",

@@ -2,7 +2,7 @@
 
 本项目的构建产物组合了以下第三方组件：
 
-- [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM)，固定到 `1533f6f9d858cdd67f3262811f2410b1a42a7255`（tag `j2me-web-ac94e627-6`），基于 `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc`。其顶层 LICENSE 声明 `/minijvm/java/` 为 GPL-2.0，其余部分为 MIT License；分发时不能把整个仓库笼统视为 MIT。
+- [xxxsen/miniJVM](https://github.com/xxxsen/miniJVM)，固定到 `8d67a8c029836ad123eef0b5f7e8ab6298b2bb57`（浏览器生命周期修复提交），基于 `digitalgust/miniJVM@ac94e62781deda037875ff69d78f272a327a72bc`。其顶层 LICENSE 声明 `/minijvm/java/` 为 GPL-2.0，其余部分为 MIT License；分发时不能把整个仓库笼统视为 MIT。
 - [xxxsen/freej2meOnMinijvm](https://github.com/xxxsen/freej2meOnMinijvm)，固定到 `abc7aebca03b914df289e8e2f566c3a8b4173464`（tag `j2me-web-c6af07fffde5-8`），基于 `digitalgust/freej2meOnMinijvm@c6af07fffde51fe1b1959f584376dec8d912d456`。上游和当前 fork 均未附带顶层 LICENSE，公开分发前应向原作者确认适配层授权。
 - [xxxsen/freej2me-plus](https://github.com/xxxsen/freej2me-plus)，固定到 `f416be17e069ec9658b868ce0a580992b9270097`（tag `j2me-web-f68a120-8`），基于 `TASEmulators/freej2me-plus@f68a12052532487f9606ba566b981aff19cc8887`。FreeJ2ME 声明为 GPL-3.0-or-later，并包含采用 ObjectWeb ASM License 的 ASM 代码。
 - [TinySoundFont](https://github.com/schellingb/TinySoundFont)，固定到 `853a0a171759f1ddba0de1442133a75912bbeffa`，MIT License。构建使用其 `tsf.h` 与 `tml.h`。

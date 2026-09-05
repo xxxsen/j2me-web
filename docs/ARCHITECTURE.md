@@ -32,6 +32,7 @@ miniJVM.wasm ─ WebLauncher ─ freej2meOnMinijvm
 - `web/compatibility-profiles.js` 以 JAR SHA-256 选择兼容策略，不依赖文件名。
 - `web/app.js` 是一个可替换的 Demo 宿主，只使用公共 API。
 - `scripts/build-runtime.sh` 从已固定的 miniJVM、freej2meOnMinijvm 和 FreeJ2ME Plus 提交生成运行时资产。
+- `web/runtime-loader.js` 在宿主指定的 frame 中导入核心，确保 GLFW 输入、音频全局对象与 Canvas 属于同一个 window。
 
 ## 生命周期
 
@@ -47,6 +48,10 @@ CREATED → LOADING → RUNNING ↔ PAUSED
 ```
 
 任何不可恢复错误进入 `FAILED`。同一实例只允许调用一次 `mount()`，`exit()` 必须幂等。退出后不得留下可交互 Canvas、按键状态、音频或可继续读写的 checkpoint 入口。
+
+加载取消与运行期故障通过控制器传递。核心以 `noInitialRun` 初始化，只有资源准备完成且未取消时才执行入口。宿主事件回调与诊断回调的异常不参与状态机迁移。
+
+miniJVM 的浏览器暂停请求由 GC 线程处理，复用 VM 协调锁、线程列表锁与 GC 安全点，完成挂起后才向 JS 确认。恢复解除对应挂起计数后确认；浏览器线程不阻塞等待。checkpoint 使用同一暂停机制确保文件树读取期间 Java 不继续写 RMS。
 
 ## 内容和宿主边界
 

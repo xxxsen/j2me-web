@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+MIDlet-Name: Lifecycle regression
+MIDlet-Version: 1.0.0
+MIDlet-Vendor: j2me-web
+MIDlet-1: Lifecycle regression,,org.j2me.test.LifecycleMidlet
+MicroEdition-Profile: MIDP-2.0
+MicroEdition-Configuration: CLDC-1.1

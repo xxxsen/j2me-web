@@ -82,6 +82,25 @@ try {
   assert.doesNotMatch(result.log, /Sound\s*:.*(?:NullPointerException|Exception)/u,
     "the MIDlet audio setup must not fail");
 
+  await page.evaluate(() => window.__j2meDemoRuntime.pause());
+  await delay(100);
+  assert.equal(await page.evaluate(() => window.__j2meWebAudio.context.state), "suspended");
+  await page.evaluate(() => {
+    window.__j2meDemoRuntime.unlockAudio();
+    document.querySelector(".j2me-runtime-display").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  });
+  await delay(100);
+  assert.equal(await page.evaluate(() => window.__j2meWebAudio.context.state), "suspended",
+    "pointer activation must not restart paused audio");
+  await page.evaluate(() => window.__j2meDemoRuntime.resume());
+  await page.waitForFunction(() => window.__j2meWebAudio.context.state === "running");
+  const closed = await page.evaluate(async () => {
+    const context = window.__j2meWebAudio.context;
+    await window.__j2meDemoRuntime.exit();
+    return context.state;
+  });
+  assert.equal(closed, "closed", "exit must close the Web Audio device");
+
   console.log(`Menu audio verified for ${fixtureName}: ${result.frames - initialFrames} frames advanced; `
     + `${result.stats.begins} Web Audio item running after one J2ME Enter input.`);
 } finally {

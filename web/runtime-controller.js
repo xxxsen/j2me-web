@@ -10,11 +10,14 @@ export class GameRuntimeController {
     this.state = "CREATED";
     this.mountCalled = false;
     this.exitPromise = null;
+    this.failurePromise = null;
+    this.loadingSettled = null;
+    this.loadingAbort = new AbortController();
     this.operationTail = Promise.resolve();
     this.lastAvailability = unavailable;
     this.availabilityTimer = null;
     this.exitRequested = false;
-    this.abort = () => { void this.exit(); };
+    this.abort = () => { void this.exit().catch(() => undefined); };
     abortSignal?.addEventListener("abort", this.abort, { once: true });
   }
 
@@ -25,22 +28,28 @@ export class GameRuntimeController {
       await this.exit();
       throw new DOMException("Aborted", "AbortError");
     }
-    this.transition("LOADING");
+    let finishLoading;
+    this.loadingSettled = new Promise((resolve) => { finishLoading = resolve; });
     try {
-      const adapter = await this.mountAdapter(target, this.reportProgress, this.reportExitRequested);
-      if (this.abortSignal?.aborted || exitHasStarted(this.state)) {
+      this.transition("LOADING");
+      this.loadingAbort.signal.throwIfAborted();
+      const adapter = await this.mountAdapter(target, this.reportProgress, this.reportExitRequested,
+        this.reportFailure, this.loadingAbort.signal);
+      if (this.loadingAbort.signal.aborted || this.state !== "LOADING") {
         await adapter.exit();
         throw new DOMException("Aborted", "AbortError");
       }
       this.adapter = adapter;
       this.transition("RUNNING");
+      this.assertOperationActive("RUNNING");
       this.refreshAvailability();
+      this.assertOperationActive("RUNNING");
       this.startAvailabilityPolling();
       this.emit({ type: "READY" });
     } catch (error) {
-      await this.fail(error);
+      if (!exitHasStarted(this.state)) await this.fail(error);
       throw stableError(error);
-    }
+    } finally { finishLoading(); }
   }
 
   pause() { return this.enqueue(() => this.performPause()); }
@@ -51,12 +60,18 @@ export class GameRuntimeController {
     this.requireCapability("screenshot");
     this.requireActiveState();
     const screenshot = await this.requireAdapter().screenshot();
+    this.requireActiveState();
     if (!(screenshot instanceof Blob) || !screenshot.size) throw new Error("PLAYER_SCREENSHOT_UNAVAILABLE");
     return screenshot;
   }
 
-  async exit() {
-    this.exitPromise ??= this.performExit();
+  exit() {
+    if (!this.exitPromise) {
+      // Install the promise before emitting EXITING: listeners may call exit again.
+      let resolve, reject;
+      this.exitPromise = new Promise((accept, decline) => { resolve = accept; reject = decline; });
+      this.performExit().then(resolve, reject);
+    }
     return this.exitPromise;
   }
 
@@ -99,11 +114,13 @@ export class GameRuntimeController {
     if (!this.capabilities.virtualKeyActions?.includes(action) || typeof pressed !== "boolean") {
       throw new Error("J2ME_INPUT_INVALID");
     }
+    if (this.state === "PAUSED") return;
     this.requireAdapter().setInput(action, pressed);
   }
 
   unlockAudio() {
     this.requireActiveState();
+    if (this.state === "PAUSED") return false;
     return this.requireAdapter().unlockAudio?.() ?? false;
   }
 
@@ -141,8 +158,10 @@ export class GameRuntimeController {
     if (this.exitRequested || exitHasStarted(this.state) || this.state === "FAILED") return;
     this.exitRequested = true;
     this.emit({ type: "EXIT_REQUESTED" });
-    void this.exit();
+    void this.exit().catch(() => undefined);
   };
+
+  reportFailure = (error) => this.fail(error);
 
   async performPause() {
     this.requireCapability("pause");
@@ -202,8 +221,13 @@ export class GameRuntimeController {
     if (this.state === "EXITED") return;
     const failed = this.state === "FAILED";
     if (!failed) this.transition("EXITING");
+    this.loadingAbort.abort();
     let exitError;
     this.stopAvailabilityPolling();
+    await this.loadingSettled;
+    await this.failurePromise;
+    // Let a pending checkpoint finish using its adapter before disposing it.
+    await this.operationTail;
     try { await this.adapter?.exit(); } catch (error) { exitError = error; }
     this.adapter = null;
     this.abortSignal?.removeEventListener("abort", this.abort);
@@ -212,13 +236,22 @@ export class GameRuntimeController {
     if (exitError) throw stableError(exitError);
   }
 
-  async fail(error) {
+  fail(error) {
+    if (exitHasStarted(this.state)) return Promise.resolve();
+    this.failurePromise ??= Promise.resolve().then(() => this.performFailure(error));
+    return this.failurePromise;
+  }
+
+  async performFailure(error) {
+    if (exitHasStarted(this.state)) return;
     this.stopAvailabilityPolling();
+    this.loadingAbort.abort();
     const adapter = this.adapter;
     this.adapter = null;
     if (this.state !== "FAILED" && this.state !== "EXITED") this.transition("FAILED");
     try { await adapter?.exit(); } catch { /* Preserve the original failure. */ }
     this.emit({ type: "FATAL_ERROR", code: stableError(error).message });
+    this.abortSignal?.removeEventListener("abort", this.abort);
   }
 
   refreshAvailability() {
@@ -272,7 +305,9 @@ export class GameRuntimeController {
   }
 
   emit(event) {
-    for (const listener of this.listeners) listener(event);
+    for (const listener of this.listeners) {
+      try { listener(event); } catch { /* Host UI errors must not interrupt runtime cleanup. */ }
+    }
   }
 }
 

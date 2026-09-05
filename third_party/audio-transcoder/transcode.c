@@ -201,7 +201,10 @@ cleanup:
     av_packet_free(&packet);
     avcodec_free_context(&decoder);
     avformat_close_input(&format);
-    if (io) avio_context_free(&io);
+    if (io) {
+        av_freep(&io->buffer);
+        avio_context_free(&io);
+    }
     av_free(io_buffer);
     if (!ok && output) {
         free(output->data);

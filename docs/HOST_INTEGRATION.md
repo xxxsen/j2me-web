@@ -20,7 +20,7 @@ const runtime = createRuntime({
   adapter: {
     adapterKind: "J2ME_MINIJVM_WEB",
     adapterId: "j2me-minijvm-web",
-    runtimeBaseUrl: "https://assets.example/j2me/v0.3.2/",
+    runtimeBaseUrl: "https://assets.example/j2me/v0.3.3/",
     storage: "HOST",
     viewport: { width: 240, height: 320 },
     scalingMode: "SHARP_FIT"
@@ -38,6 +38,8 @@ await runtime.mount(container);
 
 `contentDigest` 与 `source.sha256` 必须相同。宿主应为每次启动创建独立 frame/window，并在实例退出后丢弃该 frame，以释放 Emscripten 侦听器与 pthread worker。
 
+API 可以在父页面导入；`container` 必须属于 `frameWindow.document`。运行时通过旁置的 `runtime-loader.js` 在目标 frame 内加载核心，不使用 `eval`、内联模块或父页面的 `window.Module`。使用 CSP 时，应允许目标 frame 加载运行时目录中的外部模块、Wasm 和 worker。
+
 ## 事件
 
 宿主可在 `mount()` 之前订阅：
@@ -54,6 +56,12 @@ await runtime.mount(container);
 运行时提供 `mount`、`pause`、`resume`、`checkpoint`、`screenshot`、`exit`、`setInput`、`getScalingMode`、`setScalingMode`、Canvas/帧计数/状态查询和事件订阅。`getValidationProbe()` 为调试与自动化提供输入、GC、媒体与 3D 观测数据，不应作为游戏业务状态。
 
 `setInput(action, pressed)` 只接受 `runtime-manifest.json` 声明的逻辑动作。宿主的虚拟键、键盘或手柄层应统一转成这些动作。
+
+`pause()` 在释放输入并停止呈现后，等待 JVM 线程到达安全点；Promise 完成后 Java 执行停止推进。暂停期间忽略新的逻辑按键和音频解锁，`resume()` 等待核心恢复后再开放输入。暂停不修改游戏使用的墙上时钟，恢复后游戏仍可能根据经过的真实时间更新自己的计时器。
+
+`screenshot()` 返回逻辑 viewport 尺寸的 PNG，显示缩放和 Demo 的模拟器视图不改变截图尺寸。`getFrameCount()` 统计核心完成的画面提交次数，不代表 MIDlet 的业务循环次数。
+
+加载中的 `exit()` / AbortSignal 会取消下载和启动，并清理已经创建的资源；退出 Promise 完成后不会启动迟到的模块。运行期 Wasm abort 和宿主桥接故障会触发 `FATAL_ERROR` 并进入 `FAILED`。宿主订阅者或诊断回调抛错不会打断运行时清理。
 
 ## 存储模式
 

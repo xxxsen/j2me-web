@@ -12,7 +12,8 @@ J2ME 生态包含大量机型差异、厂商扩展和非标准媒体格式。本
 | 非标准画布 | 可用 | 逻辑 viewport 可按内容摘要配置，显示层保持宽高比 |
 | 低分辨率缩放 | 可用 | 支持整数倍最近邻、锐利铺满和 Scale2x |
 | 键盘/触摸/Gamepad | 可用 | 覆盖方向、确认、软键、数字与多指长按 |
-| RMS 持久化 | 可用 | Demo 可使用 IDBFS，嵌入式宿主可导入/导出 RMS checkpoint |
+| RMS 持久化 | 可用 | IDBFS 按 JAR 摘要隔离，嵌入式宿主可导入/导出 RMS checkpoint |
+| 暂停/恢复 | 可用 | 等待 JVM 安全点确认，暂停期间屏蔽输入与音频激活 |
 | MIDI | 可用 | TinySoundFont + SoundFont 渲染并由 Web Audio 播放 |
 | PCM/WAV | 可用 | 使用浏览器原生 Web Audio 解码 |
 | AMR/AAC/MP3 | 可用 | 原生解码失败时由独立 FFmpeg Wasm worker 转为 PCM |
@@ -23,6 +24,8 @@ J2ME 生态包含大量机型差异、厂商扩展和非标准媒体格式。本
 ## 已知限制
 
 - 当前 checkpoint 只保存 RMS 文件树，不是 Java 堆、线程或执行点快照。
+- v0.3.3 的浏览器存档隔离不自动迁移旧共享数据库，迁移方式见 [CHECKPOINTS.md](CHECKPOINTS.md)。
+- 暂停不调整游戏使用的墙上时钟，恢复时游戏自己的计时器可能跳变。
 - 当前媒体转码器不包含视频解码和渲染。
 - 网络、短信、蓝牙和更多厂商专有 API 尚未形成系统兼容性保证。
 - WebAssembly 线性内存的高水位不会归还给浏览器，但已释放块可被后续分配复用。

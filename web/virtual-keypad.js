@@ -102,7 +102,9 @@ export function createVirtualKeypad(runtime, container, profile, options = {}) {
   root.className = "j2me-virtual-keypad";
   root.setAttribute("aria-label", "J2ME 触屏按键");
   const state = new VirtualKeyState({
-    dispatch: (action, pressed) => runtime.setInput(action, pressed),
+    dispatch: (action, pressed) => {
+      if (runtime.getState() === "RUNNING") runtime.setInput(action, pressed);
+    },
     repeatDelayMs: profile.input.repeatDelayMs,
     repeatIntervalMs: profile.input.repeatIntervalMs,
     setTimeout: frameWindow.setTimeout.bind(frameWindow),
@@ -136,6 +138,7 @@ export function createVirtualKeypad(runtime, container, profile, options = {}) {
   }
 
   const pointerDown = (event) => {
+    if (runtime.getState() !== "RUNNING") return;
     const button = event.target.closest?.("[data-j2me-action]");
     if (!button || !root.contains(button)) return;
     event.preventDefault();
@@ -160,6 +163,9 @@ export function createVirtualKeypad(runtime, container, profile, options = {}) {
   root.addEventListener("contextmenu", preventContextMenu);
   frameWindow.addEventListener("blur", releaseAll);
   document.addEventListener("visibilitychange", releaseAll);
+  const unsubscribe = runtime.subscribe((event) => {
+    if (event.type === "STATE_CHANGED" && event.state !== "RUNNING") releaseAll();
+  });
   container.append(root);
 
   const initiallyVisible = options.visible ?? frameWindow.matchMedia?.("(pointer: coarse)").matches ?? false;
@@ -173,6 +179,7 @@ export function createVirtualKeypad(runtime, container, profile, options = {}) {
     },
     remove() {
       releaseAll();
+      unsubscribe();
       frameWindow.removeEventListener("blur", releaseAll);
       document.removeEventListener("visibilitychange", releaseAll);
       root.remove();

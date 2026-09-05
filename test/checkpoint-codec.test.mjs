@@ -5,10 +5,21 @@ import {
   CHECKPOINT_FORMAT,
   MAX_CHECKPOINT_BYTES,
   decodeCheckpoint,
-  encodeCheckpoint
+  encodeCheckpoint,
+  measureCheckpoint
 } from "../web/checkpoint-codec.js";
 
 const digest = "ab".repeat(32);
+
+test("metadata sizing matches the encoded bundle and enforces its limits", () => {
+  const files = [{ path: "suite/存档", bytes: Uint8Array.of(1, 2, 3) }];
+  assert.equal(measureCheckpoint(files.map((file) => ({ path: file.path, sizeBytes: file.bytes.length }))),
+    encodeCheckpoint(digest, files).length);
+  assert.throws(() => measureCheckpoint([{ path: "large", sizeBytes: MAX_CHECKPOINT_BYTES }]), /J2ME_CHECKPOINT_TOO_LARGE/u);
+  assert.throws(() => measureCheckpoint(Array.from({ length: 4097 }, (_, i) => ({ path: String(i), sizeBytes: 0 }))),
+    /J2ME_CHECKPOINT_INVALID/u);
+  assert.throws(() => measureCheckpoint([{ path: "../escape", sizeBytes: 0 }]), /J2ME_CHECKPOINT_INVALID/u);
+});
 
 test("RMS checkpoints are deterministic, bounded and round-trip exact bytes", () => {
   const files = [
